@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# ML / ZK artifacts (usually large — don't commit)
+*.onnx
+model_compiled.onnx
+*.key
+proof.json
+witness.json
+settings.json
+
+# OS
+.DS_Store
+Thumbs.db
