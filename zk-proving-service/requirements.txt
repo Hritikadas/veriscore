@@ -1,0 +1,7 @@
+ezkl>=15.0.0
+onnx>=1.15.0
+onnxruntime>=1.17.0
+torch>=2.2.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+numpy>=1.26.0
