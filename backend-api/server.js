@@ -5,11 +5,94 @@ const { spawn } = require("child_process");
 
 const app = express();
 
-const PORT = 5000;
+// Allow override via environment variables (no hardcoded absolute paths).
+const PORT = process.env.PORT || 5000;
+const PYTHON = process.env.PYTHON || "python";
+// Member B's FastAPI proving service (only needed by /api/verify).
+const PROVER_SERVICE_URL =
+    process.env.PROVER_SERVICE_URL || "http://127.0.0.1:8000";
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// ---------------------------------------------------------------------------
+// Helpers (paths are all repo-relative, never machine-specific)
+// ---------------------------------------------------------------------------
+
+const repoRoot = path.join(__dirname, "..");
+
+const MODEL_PREDICT_SCRIPT = path.join(__dirname, "predict_mlp.py");
+const LEGACY_PREDICT_SCRIPT = path.join(
+    repoRoot,
+    "model-pipeline",
+    "predict_api.py"
+);
+const PROVE_SCRIPT = path.join(__dirname, "call_prover.py");
+
+/**
+ * Spawn a Python script with a single JSON argument.
+ * Resolves with { code, stdout, stderr }. Rejects if Python itself
+ * could not be launched (e.g. "python" not on PATH).
+ */
+function runPython(scriptPath, jsonArg) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(PYTHON, [scriptPath, jsonArg]);
+
+        let stdout = "";
+        let stderr = "";
+
+        child.stdout.on("data", (data) => (stdout += data.toString()));
+        child.stderr.on("data", (data) => (stderr += data.toString()));
+
+        child.on("error", (err) =>
+            reject(new Error(`Could not start Python: ${err.message}`))
+        );
+
+        child.on("close", (code) => resolve({ code, stdout, stderr }));
+    });
+}
+
+/** Parse the JSON that the Python script printed to stdout. */
+function parsePythonJson(stdout) {
+    try {
+        return JSON.parse(stdout.trim());
+    } catch (err) {
+        return null;
+    }
+}
+
+/**
+ * Validate a 3-feature numeric input: [income, credit_score, years_employed].
+ * Accepts either { input: [..] } or { input_data: [[..]] } (ezkl style).
+ * Returns the flat array, or null if invalid.
+ */
+function normalizeNumericInput(body) {
+    let values = null;
+
+    if (Array.isArray(body.input)) {
+        values = body.input;
+    } else if (
+        Array.isArray(body.input_data) &&
+        Array.isArray(body.input_data[0])
+    ) {
+        values = body.input_data[0];
+    }
+
+    if (
+        !values ||
+        values.length !== 3 ||
+        !values.every((v) => typeof v === "number" && Number.isFinite(v))
+    ) {
+        return null;
+    }
+
+    return values;
+}
+
+// ---------------------------------------------------------------------------
+// Routes
+// ---------------------------------------------------------------------------
 
 // Home route
 app.get("/", (req, res) => {
@@ -27,12 +110,23 @@ app.get("/api/health", (req, res) => {
     });
 });
 
-// Loan prediction API
-app.post("/api/predict", (req, res) => {
-
+/**
+ * POST /api/predict
+ *
+ * Two accepted input shapes:
+ *   1) Legacy (13 loan fields - kept for backwards compatibility):
+ *      { "input": { person_age, person_income, ... } }
+ *   2) New ZK-compatible (3 numeric features):
+ *      { "input": [25000.0, 700.0, 3.0] }
+ *
+ * Response depends on which model was used.
+ */
+app.post("/api/predict", async (req, res) => {
     const input = req.body.input;
 
-    // Check input
+    // Reject missing/null/falsy input (covers null, undefined, "", 0, false).
+    // This guard must run before any object field access so that invalid
+    // input returns HTTP 400 instead of crashing the server.
     if (!input) {
         return res.status(400).json({
             success: false,
@@ -40,7 +134,51 @@ app.post("/api/predict", (req, res) => {
         });
     }
 
-    // Required 13 features
+    // ---- New path: 3 numeric features -> PyTorch MLP (ONNX) -----------------
+    if (Array.isArray(input)) {
+        const values = normalizeNumericInput({ input });
+        if (!values) {
+            return res.status(400).json({
+                success: false,
+                error:
+                    "Expected exactly 3 numeric features: " +
+                    "[income, credit_score, years_employed]"
+            });
+        }
+
+        let result;
+        try {
+            const proc = await runPython(
+                MODEL_PREDICT_SCRIPT,
+                JSON.stringify(values)
+            );
+            result = parsePythonJson(proc.stdout);
+
+            if (proc.code !== 0 || !result || result.success !== true) {
+                console.error("MLP prediction failed:", proc.stderr);
+                return res.status(500).json({
+                    success: false,
+                    error: "Model prediction failed"
+                });
+            }
+        } catch (err) {
+            console.error("MLP prediction error:", err.message);
+            return res.status(500).json({
+                success: false,
+                error: "Model prediction failed"
+            });
+        }
+
+        return res.json({
+            success: true,
+            modelVersion: result.modelVersion || "v1",
+            prediction: result.prediction,
+            decision: result.decision,
+            probability: result.probability
+        });
+    }
+
+    // ---- Legacy path: 13 loan fields -> predict_api.py ----------------------
     const requiredFields = [
         "person_age",
         "person_income",
@@ -57,7 +195,6 @@ app.post("/api/predict", (req, res) => {
         "previous_loan_defaults_on_file"
     ];
 
-    // Check missing fields
     const missingFields = requiredFields.filter(
         (field) => input[field] === undefined
     );
@@ -70,68 +207,238 @@ app.post("/api/predict", (req, res) => {
         });
     }
 
-    /*
-     * For now, Python will handle the actual ONNX prediction.
-     * We send the input data to the Python prediction script.
-     */
-
-    const pythonScript = path.join(
-        __dirname,
-        "..",
-        "model-pipeline",
-        "predict_api.py"
-    );
-
-    const pythonProcess = spawn("python", [
-        pythonScript,
-        JSON.stringify(input)
-    ]);
-
-    let output = "";
+    let output;
     let errorOutput = "";
 
-    // Receive Python output
-    pythonProcess.stdout.on("data", (data) => {
-        output += data.toString();
-    });
+    try {
+        const proc = await runPython(
+            LEGACY_PREDICT_SCRIPT,
+            JSON.stringify(input)
+        );
+        output = proc.stdout;
+        errorOutput = proc.stderr;
 
-    // Receive Python errors
-    pythonProcess.stderr.on("data", (data) => {
-        errorOutput += data.toString();
-    });
-
-    // Python process completed
-    pythonProcess.on("close", (code) => {
-
-        if (code !== 0) {
+        if (proc.code !== 0) {
             console.error("Python Error:", errorOutput);
-
             return res.status(500).json({
                 success: false,
-                error: "Model prediction failed",
-                details: errorOutput
+                error: "Model prediction failed"
+            });
+        }
+    } catch (err) {
+        console.error("Python Error:", err.message);
+        return res.status(500).json({
+            success: false,
+            error: "Model prediction failed"
+        });
+    }
+
+    const predictionResult = parsePythonJson(output);
+    if (!predictionResult) {
+        console.error("Invalid Python response:", output);
+        return res.status(500).json({
+            success: false,
+            error: "Invalid prediction response"
+        });
+    }
+
+    return res.json({
+        success: true,
+        modelVersion: "v1",
+        prediction: predictionResult
+    });
+});
+
+/**
+ * POST /api/prove
+ *
+ * Single orchestration endpoint for Member D:
+ *   1. Predict with the 3-feature PyTorch MLP (readable outcome)
+ *   2. Generate a ZK proof via Member B's proving service (call_prover.py,
+ *      which proves AND verifies in one go)
+ *
+ * Body: { "input": [25000.0, 700.0, 3.0] }   or
+ *       { "input_data": [[25000.0, 700.0, 3.0]] }
+ *
+ * Response: { success, prediction, decision, probability,
+ *             proof, public_output, verified, proofId }
+ */
+app.post("/api/prove", async (req, res) => {
+    const values = normalizeNumericInput(req.body);
+
+    if (!values) {
+        return res.status(400).json({
+            success: false,
+            error:
+                "Expected exactly 3 numeric features: " +
+                "[income, credit_score, years_employed]"
+        });
+    }
+
+    // Step 1: plain prediction (same ONNX model the circuit uses)
+    let predictor;
+    try {
+        const proc = await runPython(
+            MODEL_PREDICT_SCRIPT,
+            JSON.stringify(values)
+        );
+        predictor = parsePythonJson(proc.stdout);
+
+        if (proc.code !== 0 || !predictor || predictor.success !== true) {
+            console.error("Prediction step failed:", proc.stderr);
+            return res.status(500).json({
+                success: false,
+                error: "Prediction step failed"
+            });
+        }
+    } catch (err) {
+        console.error("Prediction step error:", err.message);
+        return res.status(500).json({
+            success: false,
+            error: "Prediction step failed"
+        });
+    }
+
+    // Step 2: ZK proof generation + verification (Member B's real service).
+    // NOTE: this currently fails locally until Member B's ezkl setup
+    // (SRS/keys) is fixed - see backend-api/README.md. We report the
+    // failure honestly instead of fabricating a proof.
+    let prover;
+    try {
+        const proc = await runPython(PROVE_SCRIPT, JSON.stringify(values));
+
+        if (proc.code !== 0) {
+            console.error("Proving step failed:", proc.stderr);
+            return res.status(502).json({
+                success: false,
+                error:
+                    "ZK proof generation is not available right now. " +
+                    "Check that Member B's proving service is set up " +
+                    "(see backend-api/README.md).",
+                prediction: predictor
             });
         }
 
-        try {
-
-            const predictionResult = JSON.parse(output);
-
-            return res.json({
-                success: true,
-                modelVersion: "v1",
-                prediction: predictionResult
-            });
-
-        } catch (error) {
-
-            console.error("Invalid Python response:", output);
-
-            return res.status(500).json({
+        prover = parsePythonJson(proc.stdout);
+        if (!prover || prover.success !== true) {
+            console.error("Proving step returned an error:", proc.stdout);
+            return res.status(502).json({
                 success: false,
-                error: "Invalid prediction response"
+                error:
+                    "ZK proof generation is not available right now. " +
+                    "Check that Member B's proving service is set up " +
+                    "(see backend-api/README.md).",
+                prediction: predictor
             });
         }
+    } catch (err) {
+        console.error("Proving step error:", err.message);
+        return res.status(502).json({
+            success: false,
+            error:
+                "ZK proof generation is not available right now. " +
+                "Check that Member B's proving service is set up " +
+                "(see backend-api/README.md).",
+            prediction: predictor
+        });
+    }
+
+    return res.json({
+        success: true,
+        modelVersion: predictor.modelVersion || "v1",
+        prediction: predictor.prediction,
+        decision: predictor.decision,
+        probability: predictor.probability,
+        proof: prover.proof,
+        public_output: prover.public_output,
+        verified: prover.verified,
+        proofId: prover.proofId
+    });
+});
+
+/**
+ * POST /api/verify
+ *
+ * Verifies a previously generated proof via Member B's FastAPI service.
+ * Body: { "proofId": "..." }
+ *
+ * Note: standalone verification requires Member B's api_server.py to be
+ * running (uvicorn). If it is not reachable we return a clear 503 instead
+ * of guessing.
+ */
+app.post("/api/verify", async (req, res) => {
+    const proofId = req.body && req.body.proofId;
+
+    if (!proofId || typeof proofId !== "string") {
+        return res.status(400).json({
+            success: false,
+            error: "proofId is required"
+        });
+    }
+
+    let response;
+    try {
+        response = await fetch(`${PROVER_SERVICE_URL}/verify-proof`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ proofId })
+        });
+    } catch (err) {
+        console.error("Proving service unreachable:", err.message);
+        return res.status(503).json({
+            success: false,
+            error:
+                "Proving service is not running. " +
+                "Start Member B's service: uvicorn app.api_server:app --port 8000"
+        });
+    }
+
+    if (response.status === 404) {
+        return res.status(404).json({
+            success: false,
+            error: "Unknown proofId"
+        });
+    }
+
+    if (!response.ok) {
+        return res.status(502).json({
+            success: false,
+            error: "Proving service returned an error"
+        });
+    }
+
+    const body = await response.json();
+    return res.json({
+        success: true,
+        verified: body.verified
+    });
+});
+
+// Centralized error handler (must come AFTER all routes).
+// Prevents Express's default HTML error page (which leaks filesystem
+// paths / stack traces) from reaching the client, especially for
+// malformed JSON bodies rejected by express.json().
+app.use((err, req, res, next) => {
+    // Log the real cause server-side only; never echo it to the client.
+    console.error("Request error:", err.message || err);
+
+    // body-parser marks malformed JSON with type "entity.parse.failed"
+    // (and also a SyntaxError with status 400 from express.json()).
+    const isBadJson =
+        err.type === "entity.parse.failed" ||
+        (err instanceof SyntaxError && err.status === 400);
+
+    if (isBadJson) {
+        return res.status(400).json({
+            success: false,
+            error: "Invalid JSON request body"
+        });
+    }
+
+    // Generic fallback for any other unexpected error: no internals leaked.
+    return res.status(500).json({
+        success: false,
+        error: "Internal server error"
     });
 });
 
@@ -141,7 +448,9 @@ app.listen(PORT, () => {
     console.log("VERISCORE BACKEND API");
     console.log("=================================");
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log("Health: http://localhost:5000/api/health");
-    console.log("Prediction: POST http://localhost:5000/api/predict");
+    console.log(`Health:       GET  http://localhost:${PORT}/api/health`);
+    console.log(`Predict:      POST http://localhost:${PORT}/api/predict`);
+    console.log(`Prove:        POST http://localhost:${PORT}/api/prove`);
+    console.log(`Verify:       POST http://localhost:${PORT}/api/verify`);
     console.log("=================================");
 });
