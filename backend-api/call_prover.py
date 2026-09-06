@@ -25,10 +25,11 @@ def main():
 
         output = {
             "success": True,
-            "prediction": result.get("output", [])[0] if result.get("output") else None,
+            "prediction": result.get("output", [None])[0] if result.get("output") else None,
             "proof": result.get("proof"),
             "public_output": result.get("publicSignals"),
-            "verified": is_verified
+            "verified": is_verified,
+            "proofId": result.get("proofId")
         }
 
         print(json.dumps(output))

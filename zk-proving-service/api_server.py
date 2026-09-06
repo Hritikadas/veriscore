@@ -2,7 +2,7 @@
 Thin HTTP wrapper around prover_service.py, so Member C's Node/Express
 backend can call this over HTTP instead of running Python directly.
 
-Run: uvicorn app.api_server:app --reload --port 8000
+Run: uvicorn api_server:app --port 8000   (from the zk-proving-service dir)
 
 Endpoints deliberately mirror docs/API_CONTRACT.md so Member C's Express
 routes can mostly just forward requests/responses to/from here.
@@ -10,7 +10,14 @@ routes can mostly just forward requests/responses to/from here.
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.prover_service import generate_proof, verify_proof, get_proof
+from prover_service import (
+    generate_proof,
+    verify_proof,
+    get_proof,
+    model_info,
+    infer_model,
+    MODEL_ID,
+)
 
 app = FastAPI(title="Veriscore ZK Proving Service")
 
@@ -53,3 +60,37 @@ def http_verify_proof(req: VerifyRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# MLaaS-style model registry (Phase 6) - additive, nothing above changed.
+# ---------------------------------------------------------------------------
+
+@app.get("/api/models")
+def list_models():
+    info = model_info()
+    return {"models": [info], "count": 1}
+
+
+@app.get("/api/models/{model_id}")
+def get_model(model_id: str):
+    info = model_info()
+    if info["id"] != model_id:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+    return info
+
+
+class InferRequest(BaseModel):
+    input: list
+
+
+@app.post("/api/models/{model_id}/infer")
+def http_infer_model(model_id: str, req: InferRequest):
+    if model_id != MODEL_ID:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+    try:
+        return infer_model(req.input)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Inference failed: {e}")

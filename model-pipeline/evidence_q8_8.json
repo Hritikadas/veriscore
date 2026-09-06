@@ -1,0 +1,68 @@
+﻿[
+  {
+    "input": [
+      25000.0,
+      700.0,
+      3.0
+    ],
+    "float_logit": 0.234012,
+    "q8_8_logit": 0.28125,
+    "abs_logit_error": 0.047238,
+    "float_probability": 0.558238,
+    "q8_8_probability": 0.569853,
+    "probability_diff": 0.011615,
+    "float_decision": "approved",
+    "q8_8_decision": "approved",
+    "decision_consistent": true
+  },
+  {
+    "input": [
+      50000.0,
+      750.0,
+      7.0
+    ],
+    "float_logit": 0.196594,
+    "q8_8_logit": 0.261719,
+    "abs_logit_error": 0.065124,
+    "float_probability": 0.548991,
+    "q8_8_probability": 0.565059,
+    "probability_diff": 0.016068,
+    "float_decision": "approved",
+    "q8_8_decision": "approved",
+    "decision_consistent": true
+  },
+  {
+    "input": [
+      80000.0,
+      800.0,
+      10.0
+    ],
+    "float_logit": 0.182739,
+    "q8_8_logit": 0.242188,
+    "abs_logit_error": 0.059448,
+    "float_probability": 0.545558,
+    "q8_8_probability": 0.560253,
+    "probability_diff": 0.014695,
+    "float_decision": "approved",
+    "q8_8_decision": "approved",
+    "decision_consistent": true
+  },
+  {
+    "input": [
+      15000.0,
+      450.0,
+      1.0
+    ],
+    "float_logit": 0.147443,
+    "q8_8_logit": 0.210938,
+    "abs_logit_error": 0.063494,
+    "float_probability": 0.536794,
+    "q8_8_probability": 0.55254,
+    "probability_diff": 0.015746,
+    "float_decision": "approved",
+    "q8_8_decision": "approved",
+    "decision_consistent": true
+  }
+]
+
+DECISION CONSISTENCY: PASS

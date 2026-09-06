@@ -1,22 +1,61 @@
-# Node
+# ================================
+# Node / React
+# ================================
 node_modules/
-dist/
-.env
+frontend-demo/node_modules/
+frontend-demo/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
+# ================================
 # Python
+# ================================
 __pycache__/
-*.pyc
-venv/
+*.py[cod]
+*.pyo
 .venv/
+venv/
+env/
 
-# ML / ZK artifacts (usually large — don't commit)
-*.onnx
-model_compiled.onnx
-*.key
-proof.json
-witness.json
-settings.json
+# ================================
+# Runtime / Generated Artifacts
+# ================================
+artifacts/
+*.log
 
-# OS
+# ================================
+# EZKL generated files
+# ================================
+zk-proving-service/artifacts/
+zk-proving-service/*.json
+!zk-proving-service/package.json
+
+# ================================
+# OS / Editor
+# ================================
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
+
+# ================================
+# Environment / Secrets
+# ================================
+.env
+.env.*
+!.env.example
+
+# ================================
+# Build / Cache
+# ================================
+dist/
+build/
+.cache/
+
+# ================================
+# Temporary files
+# ================================
+*.tmp
+*.temp
+*.bak

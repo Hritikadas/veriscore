@@ -111,6 +111,56 @@ app.get("/api/health", (req, res) => {
 });
 
 /**
+ * MLaaS-style model registry (Phase 6). Forwarded to Member B's ZK proving
+ * service; additive - nothing else changed, proofs/predict still work exactly
+ * as before.
+ */
+async function forwardZk(req, res, method, path, body) {
+    let response;
+    try {
+        response = await fetch(`${PROVER_SERVICE_URL}${path}`, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: body ? JSON.stringify(body) : undefined
+        });
+    } catch (err) {
+        console.error("Proving service unreachable:", err.message);
+        return res.status(503).json({
+            success: false,
+            error: "Proving service is not running (uvicorn api_server:app --port 8000)"
+        });
+    }
+    if (response.status === 404) {
+        return res.status(404).json({ success: false, error: "Not found" });
+    }
+    const data = await response.json().catch(() => null);
+    return response.ok
+        ? res.status(response.status).json(data)
+        : res.status(502).json({ success: false, error: "Proving service error", detail: data });
+}
+
+app.get("/api/models", (req, res) => {
+    forwardZk(req, res, "GET", "/api/models", null);
+});
+
+app.get("/api/models/:id", (req, res) => {
+    forwardZk(req, res, "GET", `/api/models/${encodeURIComponent(req.params.id)}`, null);
+});
+
+app.post("/api/models/:id/infer", (req, res) => {
+    const body = req.body && Array.isArray(req.body.input)
+        ? { input: req.body.input }
+        : null;
+    if (!body) {
+        return res.status(400).json({
+            success: false,
+            error: "Expected { input: [income, credit_score, years_employed] }"
+        });
+    }
+    forwardZk(req, res, "POST", `/api/models/${encodeURIComponent(req.params.id)}/infer`, body);
+});
+
+/**
  * POST /api/predict
  *
  * Two accepted input shapes:
@@ -447,10 +497,13 @@ app.listen(PORT, () => {
     console.log("=================================");
     console.log("VERISCORE BACKEND API");
     console.log("=================================");
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Health:       GET  http://localhost:${PORT}/api/health`);
-    console.log(`Predict:      POST http://localhost:${PORT}/api/predict`);
-    console.log(`Prove:        POST http://localhost:${PORT}/api/prove`);
-    console.log(`Verify:       POST http://localhost:${PORT}/api/verify`);
+console.log(`Server running on http://localhost:${PORT}`);
+console.log(`Health:       GET  http://localhost:${PORT}/api/health`);
+console.log(`Models:       GET  http://localhost:${PORT}/api/models`);
+console.log(`Model detail: GET  http://localhost:${PORT}/api/models/loan-v1`);
+console.log(`Model infer:  POST http://localhost:${PORT}/api/models/loan-v1/infer`);
+console.log(`Predict:      POST http://localhost:${PORT}/api/predict`);
+console.log(`Prove:        POST http://localhost:${PORT}/api/prove`);
+console.log(`Verify:       POST http://localhost:${PORT}/api/verify`);
     console.log("=================================");
 });
