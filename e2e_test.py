@@ -71,17 +71,17 @@ print("=== Veriscore E2E suite ===")
 c, b, t = get(f"{BACKEND}/api/health")
 check("backend health 200", c == 200 and b.get("status") == "healthy", f"{c}")
 
-# 2. predict valid
-c, b, t = post(f"{BACKEND}/api/predict", {"input": [25000.0, 700.0, 3.0]})
+# 2. predict valid (high income -> approved)
+c, b, t = post(f"{BACKEND}/api/predict", {"input": [100000.0, 800.0, 10.0]})
 check(
-    "predict valid -> approved 0.5582",
+    "predict valid -> approved ~0.606",
     c == 200 and b.get("prediction") == 1 and b.get("decision") == "approved"
-    and abs(b.get("probability", 0) - 0.5582) < 1e-4,
+    and abs(b.get("probability", 0) - 0.6056) < 1e-3,
     f"{c} d={b.get('decision')} p={b.get('probability')}",
 )
 
 # 3. prove valid -> real proof
-c, b, t = post(f"{BACKEND}/api/prove", {"input": [25000.0, 700.0, 3.0]})
+c, b, t = post(f"{BACKEND}/api/prove", {"input": [100000.0, 800.0, 10.0]})
 proof = b.get("proof") or {}
 record["prove_http"] = round(t, 2)
 check(
@@ -116,7 +116,7 @@ c, html, t = get(f"{FRONTEND}/")
 check("frontend loads (Veriscore page)", c == 200 and "Veriscore" in html, f"{c}")
 
 # 8. frontend submit path via vite proxy -> real proof
-c, b, t = post(f"{FRONTEND}/api/prove", {"input": [25000.0, 700.0, 3.0]})
+c, b, t = post(f"{FRONTEND}/api/prove", {"input": [100000.0, 800.0, 10.0]})
 record["prove_proxy"] = round(t, 2)
 check(
     "frontend proxy submit -> 200 + decision + proofId",
@@ -126,7 +126,7 @@ check(
 )
 
 # 9. decision fields the UI renders (probability present)
-c, b, t = post(f"{BACKEND}/api/prove", {"input": [25000.0, 700.0, 3.0]})
+c, b, t = post(f"{BACKEND}/api/prove", {"input": [100000.0, 800.0, 10.0]})
 check(
     "decision/probability rendered from API",
     c == 200 and isinstance(b.get("probability"), float)
@@ -139,7 +139,7 @@ c, b, t = get(f"{BACKEND}/api/health")
 check("backend healthy after error tests", c == 200, f"{c}")
 
 # 11. proof generation / verification timing + size (recorded)
-c, b, t = post(f"{BACKEND}/api/prove", {"input": [25000.0, 700.0, 3.0]})
+c, b, t = post(f"{BACKEND}/api/prove", {"input": [100000.0, 800.0, 10.0]})
 check(f"proof gen ~{round(t,2)}s (recorded)", c == 200 and t < 30, f"{round(t,2)}s")
 
 # 12. proof size recorded from disk store

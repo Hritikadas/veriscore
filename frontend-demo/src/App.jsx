@@ -15,34 +15,72 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 const MSG_SERVICE_DOWN =
   "Verification service unavailable. Confirm the backend (port 5000) and ZK proving service (port 8000) are running, then try again.";
 
-function friendlyApiError(body, status) {
+// Hard capacity of the calibrated EZKL circuit: the ONNX model's first
+// feature (annual income) is quantized with scales [11,18] into a 2x14-bit
+// limb tower (base 16384, n=2). Any value above perFeatureMaxCalibrated
+// cannot be decomposed and EZKL witness generation throws a genuine
+// "decomposition error". This is a property of the existing circuit (see
+// prover_service.py model_info() -> supportedRange), NOT a service bug.
+const CIRCUIT_MAX_FEATURE = 131071;
+
+function friendlyApiError(body, status, prediction) {
   const raw = String((body && body.error) || `Request failed (${status})`);
   const m = raw.toLowerCase();
-  if (status === 503 || /prover|ezkl|unreachable|conn|refused/.test(m)) {
-    return "ZK proving service unavailable. Please try again shortly.";
+
+  // 503 = a service is genuinely unreachable (connection refused/failed).
+  if (status === 503 || /conn|refused|unreachable|prover is not running/.test(m)) {
+    return "Backend API or ZK proving service is unreachable. Confirm the backend (port 5000) and ZK proving service (port 8000) are running, then try again.";
   }
+
+  // 400 = input shape / value rejected before any proving happened.
   if (status === 400 || /invalid|input|feature/.test(m)) {
     return "Please enter valid financial inputs.";
   }
+
+  // 502 = the backend reached the proving pipeline but ZK proof generation or
+  // verification itself failed (e.g. the calibrated EZKL circuit rejected the
+  // input as out of range). Surface the real cause instead of hiding it.
+  if (status === 502) {
+    const detail = String((body && body.detail) || "");
+    if (/decomposition|too large to be represented|synthesis error/.test(detail + m)) {
+      return (
+        "ZK proof generation could not run: annual income exceeds the calibrated circuit's " +
+        `maximum of ${CIRCUIT_MAX_FEATURE.toLocaleString("en-US")} USD/year ` +
+        "(2x14-bit EZKL limb capacity). Enter an income at or below this limit."
+      );
+    }
+    if (/proving service returned an error|proof generation|not available|prover/.test(m)) {
+      return "ZK proof generation failed on the proving service." + (detail ? ` (${detail})` : "");
+    }
+    return "ZK proof generation failed on the backend." + (raw ? ` (${raw})` : "");
+  }
+
   if (/verif/.test(m) && /fail/.test(m)) {
     return "Cryptographic verification failed.";
   }
+
   if (status >= 500) {
-    return MSG_SERVICE_DOWN;
+    return "Backend error" + (raw ? `: ${raw}` : "");
   }
   return raw;
 }
 
 function buildError(error) {
-  return MSG_SERVICE_DOWN;
+  // Preserve the real cause (e.g. fetch failure -> connection refused) instead
+  // of returning a generic message.
+  const msg = error && error.message ? error.message : MSG_SERVICE_DOWN;
+  return /failed to fetch|networkerror|connect|refused|unreachable/i.test(msg)
+    ? MSG_SERVICE_DOWN
+    : msg;
 }
 
 function App() {
-  const [income, setIncome] = useState("25000");
-  const [creditScore, setCreditScore] = useState("700");
-  const [yearsEmployed, setYearsEmployed] = useState("3");
+  const [income, setIncome] = useState("");
+  const [creditScore, setCreditScore] = useState("");
+  const [yearsEmployed, setYearsEmployed] = useState("");
   const [phase, setPhase] = useState("idle"); // idle | run | success | error
   const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({});
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -74,21 +112,44 @@ function App() {
 
     const raw = [income, creditScore, yearsEmployed];
     const nums = raw.map((v) => Number(v));
-    const invalid =
-      raw.some((v) => String(v).trim() === "") ||
-      nums.some((n) => !Number.isFinite(n)) ||
-      nums[0] < 0 ||
-      nums[1] < 0 ||
-      nums[1] > 850 ||
-      nums[2] < 0;
+    const errors = {};
 
-    if (invalid) {
+    if (String(income).trim() === "") {
+      errors.income = "Annual income is required.";
+    } else if (!Number.isFinite(nums[0]) || nums[0] <= 0) {
+      errors.income = "Annual income must be a positive number.";
+    } else if (nums[0] > CIRCUIT_MAX_FEATURE) {
+      errors.income =
+        `Annual income exceeds the proof circuit's maximum of ` +
+        `${CIRCUIT_MAX_FEATURE.toLocaleString("en-US")} USD/year. ` +
+        `Enter an income at or below this limit.`;
+    }
+
+    if (String(creditScore).trim() === "") {
+      errors.creditScore = "Credit score is required.";
+    } else if (
+      !Number.isFinite(nums[1]) ||
+      nums[1] < 0 ||
+      nums[1] > 850
+    ) {
+      errors.creditScore = "Credit score must be between 0 and 850.";
+    }
+
+    if (String(yearsEmployed).trim() === "") {
+      errors.yearsEmployed = "Years employed is required.";
+    } else if (!Number.isFinite(nums[2]) || nums[2] < 0) {
+      errors.yearsEmployed = "Years employed must be a valid non-negative number.";
+    }
+
+    if (Object.keys(errors).length > 0) {
       setResult(null);
-      setError("Please enter valid financial inputs.");
+      setError(null);
+      setErrors(errors);
       setPhase("error");
       return;
     }
 
+    setErrors({});
     setPhase("run");
     setError(null);
     setResult(null);
@@ -103,15 +164,17 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input })
       });
-    } catch {
-      setError(buildError());
+    } catch (err) {
+      setError(buildError(err));
       setPhase("error");
       return;
     }
 
     const body = await res.json().catch(() => ({}));
     if (!res.ok || body.success !== true) {
-      setError(friendlyApiError(body, res.status));
+      const prediction =
+        body && body.prediction ? body.prediction : null;
+      setError(friendlyApiError(body, res.status, prediction));
       setPhase("error");
       return;
     }
@@ -159,6 +222,15 @@ function App() {
               yearsEmployed={yearsEmployed}
               setYearsEmployed={setYearsEmployed}
               busy={phase === "run"}
+              errors={errors}
+              onClearError={(field) =>
+                setErrors((prev) => {
+                  if (!(field in prev)) return prev;
+                  const next = { ...prev };
+                  delete next[field];
+                  return next;
+                })
+              }
               onSubmit={handleSubmit}
             />
             <StatusPanel

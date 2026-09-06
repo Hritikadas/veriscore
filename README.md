@@ -117,11 +117,12 @@ This mirrors classic zkML architecture (model -> circuit -> prover -> verifier) 
 
 - **Task**: binary loan-approval classification (3 features -> 1 output).
 - **Features**: `person_income`, `credit_score`, `person_emp_exp`.
-- **Output**: `loan_status` (0 = rejected, 1 = approved).
+- **Output**: approval probability. In the raw credit-risk dataset, `loan_status = 1` means **default / high risk** (measurably: lower income, higher loan rate, higher debt-to-income); the model is therefore trained on **`approval = 1 - loan_status`**, so a single sigmoid reads directly as P(approval). Decision: approved iff probability >= 0.5.
 - **Architecture**: PyTorch MLP `3 -> 8 -> 4 -> 1`, ReLU activations, final sigmoid with **decision threshold 0.5**.
-- **Training**: 100 epochs, Adam (lr 1e-3), `BCEWithLogitsLoss` with `pos_weight` to handle class imbalance, 80/20 stratified split (`random_state=42`).
+- **Training**: 250 epochs, Adam (lr 1e-3), `BCEWithLogitsLoss` with `pos_weight = reject/approve` (0.286) to counter the approval-majority bias, 80/20 stratified split (`random_state=42`). Test accuracy ≈ 0.78.
 - **Normalization**: z-score (mean / std over the training set) applied *inside* the model graph, so the circuit proves the full pipeline including normalization.
-- **Export**: exported to ONNX (`models/loan_model/model.onnx`) and validated with `onnxruntime` so the float path matches PyTorch.
+- **Export**: exported to ONNX (`models/loan_model/model.onnx`) and validated with `onnxruntime`; PyTorch vs ONNX parity is exact (max abs logit diff = 0.0).
+- **Data note**: in this dataset, `credit_score` and `person_emp_exp` have near-zero class separation; income is the main driver. The model's graded, monotonic income response comes from the data — nothing is hardcoded.
 - **Quantization study**: a hand-written Q8.8 fixed-point reference (`model-pipeline/evidence_q8_8.json`) shows decision-identical results with abs logit error <= 0.065 vs. float (target model accuracy drop stays below 1-2%).
 
 ## 7. Verified Example
@@ -129,12 +130,15 @@ This mirrors classic zkML architecture (model -> circuit -> prover -> verifier) 
 Measured against the live services (see `docs/final-report.md`, `docs/api-registry.md`):
 
 ```
-Input  [25000, 700, 3]   ->  logit 0.234012, probability 0.558238, decision: APPROVED
-Input  [50000, 750, 7]   ->  logit 0.196594, probability 0.548991, decision: APPROVED
-Input  [80000, 800, 10]  ->  logit 0.182739, probability 0.545558, decision: APPROVED
+Input  [25000, 450, 1]  ->  probability 0.3919, decision: REJECTED      (real proof, verified: true)
+Input  [30000, 450, 1]  ->  probability 0.4016, decision: REJECTED      (real proof, verified: true)
+Input  [50000, 600, 3]  ->  probability 0.4098, decision: REJECTED      (real proof, verified: true)
+Input  [80000, 750, 8]  ->  probability 0.5231, decision: APPROVED      (real proof, verified: true)
+Input  [100000, 800, 10] -> probability 0.6056, decision: APPROVED      (real proof, verified: true)
+Input  [120000, 800, 15] -> probability 0.6046, decision: APPROVED      (real proof, verified: true)
 ```
 
-Each approved decision was accompanied by a **real, verified zero-knowledge proof** (`verified: true`).
+Each decision is accompanied by a **real, verified zero-knowledge proof** (`verified: true`) — neither class nor probability is hardcoded; the exact boundary comes from the trained model.
 
 ## 8. Zero-Knowledge Privacy
 
@@ -359,13 +363,13 @@ node ethers-chain-demo.js   # ethers.js + local ganache chain (real mined txs)
 2. **Hero** explains the pitch: "Trust AI. Keep Data Private." with a mini model -> proof -> verify flow.
 3. Scroll to the **demo**: enter loan data — annual income (USD/year, e.g. 25000), credit score (0–850, e.g. 700), years employed (e.g. 3).
 4. Click **Generate Proof** — the status panel steps through *Connecting to proving service -> Running AI model -> Generating ZK proof -> Cryptographic verification* (proofs take ~1.5 s, the panel communicates that honestly).
-5. **Result panel** shows the decision (APPROVED / REJECTED), the probability (e.g. **55.82%** for `[25000, 700, 3]`), chips for **ZK Proof Generated** and **Cryptographic Verification Verified**, and the proof ID.
+5. **Result panel** shows the decision (APPROVED / REJECTED), the probability (e.g. **40.16% / REJECTED** for `[30000, 450, 1]`, **60.56% / APPROVED** for `[100000, 800, 10]`), chips for **ZK Proof Generated** and **Cryptographic Verification Verified**, and the proof ID.
 6. **How the proof protects you**: privacy section explains raw inputs never appear in the proof; inputs are Private, weights Fixed, output Public.
 7. **Pipeline** section traces model -> circuit -> setup -> witness -> proof -> verify.
 8. **Client-side verification** shows the version-matched Solidity verifier checking the proof in an in-memory EVM — verification that needs no operator server.
 9. **On-chain** section shows the `ProofRegistry` + `Verifier.sol` flow and the local-chain transactions.
 10. **Registry** section lists the live `loan-v1` model (EZKL version, curve, visibility, GPU status).
-11. For the skeptical judge: re-prove `[50000, 750, 7]` or `[80000, 800, 10]` and re-verify by proof ID; or run `python e2e_test.py` in a terminal for 17/17 live checks.
+11. For the skeptical judge: re-prove `[30000, 450, 1]` (REJECTED) or `[100000, 800, 10]` (APPROVED) and re-verify by proof ID; or run `python e2e_test.py` in a terminal for 17/17 live checks.
 
 ## 17. Tests & Verification
 
@@ -376,8 +380,8 @@ All numbers below are **measured** against the running services on the developme
 | `python e2e_test.py` | **17 / 17 PASS** (health, predict, prove, verify, invalid/malformed input, vite proxy path, persistence, registry, post-error health) |
 | Proof generation | ~1.5 s per proof (2^12 rows) |
 | Proof verification | ~0.03 s |
-| Proof size | **26 951 B** per proof |
-| Decision/probability parity | `[25000,700,3]` -> approved 0.5582 (matches float model and demo semantics) |
+| Proof size | **26 902 B** per proof |
+| Decision/probability parity | `[100000,800,10]` -> approved 0.6056; `[30000,450,1]` -> rejected 0.4016 (matches float model; PyTorch vs ONNX max abs logit diff = 0.0) |
 | Q8.8 vs float | decision-identical; abs logit error <= 0.065 (`model-pipeline/evidence_q8_8.json`) |
 | Client-side EVM verify | `CLIENT_SIDE_EVM_VERIFY true` (in-memory EVM) |
 | On-chain verify | `REGISTRY_VERIFY true`, mined `Verified` event `result=true` on ganache chain id 1337 |

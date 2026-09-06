@@ -8,6 +8,8 @@ export default function DemoForm({
   yearsEmployed,
   setYearsEmployed,
   busy,
+  errors,
+  onClearError,
   onSubmit
 }) {
   return (
@@ -26,12 +28,21 @@ export default function DemoForm({
               step="1"
               inputMode="numeric"
               value={income}
-              onChange={(e) => setIncome(e.target.value)}
-              placeholder="e.g. 25000"
+              onChange={(e) => {
+                setIncome(e.target.value);
+                onClearError("income");
+              }}
+              placeholder="e.g. 100000"
               aria-describedby="income-hint"
             />
           </div>
-          <span id="income-hint" className="field-hint">USD / year</span>
+          {errors.income ? (
+            <span id="income-error" className="field-error" role="alert">
+              {errors.income}
+            </span>
+          ) : (
+            <span id="income-hint" className="field-hint">USD / year — your yearly income (proof circuit max 131,071)</span>
+          )}
         </div>
 
         <div className="field">
@@ -48,12 +59,21 @@ export default function DemoForm({
               step="1"
               inputMode="numeric"
               value={creditScore}
-              onChange={(e) => setCreditScore(e.target.value)}
+              onChange={(e) => {
+                setCreditScore(e.target.value);
+                onClearError("creditScore");
+              }}
               placeholder="e.g. 700"
               aria-describedby="credit-hint"
             />
           </div>
-          <span id="credit-hint" className="field-hint">0 – 850</span>
+          {errors.creditScore ? (
+            <span id="credit-error" className="field-error" role="alert">
+              {errors.creditScore}
+            </span>
+          ) : (
+            <span id="credit-hint" className="field-hint">0 – 850</span>
+          )}
         </div>
 
         <div className="field">
@@ -69,12 +89,21 @@ export default function DemoForm({
               step="1"
               inputMode="numeric"
               value={yearsEmployed}
-              onChange={(e) => setYearsEmployed(e.target.value)}
+              onChange={(e) => {
+                setYearsEmployed(e.target.value);
+                onClearError("yearsEmployed");
+              }}
               placeholder="e.g. 3"
               aria-describedby="years-hint"
             />
           </div>
-          <span id="years-hint" className="field-hint">years</span>
+          {errors.yearsEmployed ? (
+            <span id="years-error" className="field-error" role="alert">
+              {errors.yearsEmployed}
+            </span>
+          ) : (
+            <span id="years-hint" className="field-hint">years</span>
+          )}
         </div>
 
         <button
