@@ -15,7 +15,7 @@ export default function Header() {
             {logoState !== "error" && (
               <img
                 className="brand-img"
-                src="/veriscore-logo.png"
+                src="/images/veriscore-logo.png"
                 alt="Veriscore"
                 onLoad={() => setLogoState("loaded")}
                 onError={() => setLogoState("error")}

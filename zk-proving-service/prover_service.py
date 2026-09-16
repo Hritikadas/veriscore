@@ -35,7 +35,11 @@ import ezkl  # noqa: E402
 HERE = os.path.dirname(__file__)
 MODEL_DIR = os.path.join(HERE, "..", "models", "loan_model")
 MODEL_PATH = os.path.join(MODEL_DIR, "model.onnx")
-CALIBRATION_INPUT_PATH = os.path.join(HERE, "calibration_data.json")
+CALIBRATION_INPUT_PATH = (
+    os.path.join(HERE, "configs", "calibration_data.json")
+    if os.path.exists(os.path.join(HERE, "configs", "calibration_data.json"))
+    else os.path.join(HERE, "calibration_data.json")
+)
 
 ARTIFACTS_DIR = os.path.join(HERE, "..", "artifacts")
 SETTINGS_PATH = os.path.join(ARTIFACTS_DIR, "settings.json")

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { IconCheck, IconSpark } from "./icons.jsx";
+import { IconCheck, IconSpark } from "../components/icons.jsx";
 import "./Landing.css";
 
 const TRUST = [
@@ -14,47 +14,46 @@ export default function Landing({ onGetStarted }) {
 
   return (
     <div className="landing">
-      {/* ---------- minimal header ---------- */}
+      {/* ---------- one continuous full-screen hero ---------- */}
+      {/* header overlays the hero: logo top-left only */}
       <header className="lnd-header">
-        <div className="lnd-header-inner">
-          <a className="brand" href="#top" aria-label="Veriscore home">
-            <span
-              className={`brand-logo ${
-                logoState === "error" ? "fallback-only" : ""
-              }`}
-            >
-              {logoState !== "error" && (
-                <img
-                  className="brand-img"
-                  src="/veriscore-logo.png"
-                  alt="Veriscore"
-                  onLoad={() => setLogoState("loaded")}
-                  onError={() => setLogoState("error")}
-                />
-              )}
-              {logoState !== "loaded" && (
-                <span className="brand-fallback" aria-hidden="true">
-                  <svg
-                    className="brand-fallback-icon"
-                    viewBox="0 0 64 64"
-                    width="16"
-                    height="16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M32 12l16 8v12c0 12-7 19-16 22-9-3-16-10-16-22V20l16-8z" />
-                  </svg>
-                  <span className="brand-fallback-text">Veriscore</span>
-                </span>
-              )}
-            </span>
-          </a>
-        </div>
+        <a className="brand" href="#top" aria-label="Veriscore home">
+          <span
+            className={`brand-logo ${
+              logoState === "error" ? "fallback-only" : ""
+            }`}
+          >
+            {logoState !== "error" && (
+              <img
+                className="brand-img"
+                src="/images/veriscore-logo.png"
+                alt="Veriscore"
+                onLoad={() => setLogoState("loaded")}
+                onError={() => setLogoState("error")}
+              />
+            )}
+            {logoState !== "loaded" && (
+              <span className="brand-fallback" aria-hidden="true">
+                <svg
+                  className="brand-fallback-icon"
+                  viewBox="0 0 64 64"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="6"
+                  strokeLinejoin="round"
+                >
+                  <path d="M32 12l16 8v12c0 12-7 19-16 22-9-3-16-10-16-22V20l16-8z" />
+                </svg>
+                <span className="brand-fallback-text">Veriscore</span>
+              </span>
+            )}
+          </span>
+        </a>
       </header>
 
-      {/* ---------- hero ---------- */}
+      {/* ---------- hero content ---------- */}
       <main className="lnd-hero" id="top">
         <div className="lnd-hero-copy-wrap">
           <div className="lnd-copy">

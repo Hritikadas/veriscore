@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Landing from "./components/Landing.jsx";
+import Landing from "./pages/Landing.jsx";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
 import HowItWorks from "./components/HowItWorks.jsx";
