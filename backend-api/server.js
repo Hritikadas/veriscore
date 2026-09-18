@@ -7,6 +7,7 @@ const app = express();
 
 // Allow override via environment variables (no hardcoded absolute paths).
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || "0.0.0.0";
 const PYTHON = process.env.PYTHON || "python";
 // Member B's FastAPI proving service (only needed by /api/verify).
 const PROVER_SERVICE_URL =
@@ -196,27 +197,51 @@ app.post("/api/predict", async (req, res) => {
             });
         }
 
-        let result;
-        try {
-            const proc = await runPython(
-                MODEL_PREDICT_SCRIPT,
-                JSON.stringify(values)
-            );
-            result = parsePythonJson(proc.stdout);
+        let result = null;
 
-            if (proc.code !== 0 || !result || result.success !== true) {
-                console.error("MLP prediction failed:", proc.stderr);
+        // Try HTTP to ZK/Prover microservice first if available
+        try {
+            const resp = await fetch(`${PROVER_SERVICE_URL}/api/models/loan-v1/infer`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ input: values })
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                result = {
+                    success: true,
+                    modelVersion: data.version || "v1",
+                    prediction: data.approved ? 1 : 0,
+                    decision: data.approved ? "approved" : "rejected",
+                    probability: data.probability
+                };
+            }
+        } catch (e) {
+            // Fallback to local python script if HTTP service is unreachable
+        }
+
+        if (!result) {
+            try {
+                const proc = await runPython(
+                    MODEL_PREDICT_SCRIPT,
+                    JSON.stringify(values)
+                );
+                result = parsePythonJson(proc.stdout);
+
+                if (proc.code !== 0 || !result || result.success !== true) {
+                    console.error("MLP prediction failed:", proc.stderr);
+                    return res.status(500).json({
+                        success: false,
+                        error: "Model prediction failed"
+                    });
+                }
+            } catch (err) {
+                console.error("MLP prediction error:", err.message);
                 return res.status(500).json({
                     success: false,
                     error: "Model prediction failed"
                 });
             }
-        } catch (err) {
-            console.error("MLP prediction error:", err.message);
-            return res.status(500).json({
-                success: false,
-                error: "Model prediction failed"
-            });
         }
 
         return res.json({
@@ -304,7 +329,7 @@ app.post("/api/predict", async (req, res) => {
  *
  * Single orchestration endpoint for Member D:
  *   1. Predict with the 3-feature PyTorch MLP (readable outcome)
- *   2. Generate a ZK proof via Member B's proving service (call_prover.py,
+ *   2. Generate a ZK proof via Member B's proving service (call_prover.py or HTTP API,
  *      which proves AND verifies in one go)
  *
  * Body: { "input": [25000.0, 700.0, 3.0] }   or
@@ -325,72 +350,131 @@ app.post("/api/prove", async (req, res) => {
         });
     }
 
-    // Step 1: plain prediction (same ONNX model the circuit uses)
-    let predictor;
-    try {
-        const proc = await runPython(
-            MODEL_PREDICT_SCRIPT,
-            JSON.stringify(values)
-        );
-        predictor = parsePythonJson(proc.stdout);
+    // Step 1: Prediction
+    let predictor = null;
 
-        if (proc.code !== 0 || !predictor || predictor.success !== true) {
-            console.error("Prediction step failed:", proc.stderr);
+    try {
+        const inferResp = await fetch(`${PROVER_SERVICE_URL}/api/models/loan-v1/infer`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input: values })
+        });
+        if (inferResp.ok) {
+            const data = await inferResp.json();
+            predictor = {
+                success: true,
+                modelVersion: data.version || "v1",
+                prediction: data.approved ? 1 : 0,
+                decision: data.approved ? "approved" : "rejected",
+                probability: data.probability
+            };
+        }
+    } catch (e) {
+        // Fallback to local python script
+    }
+
+    if (!predictor) {
+        try {
+            const proc = await runPython(
+                MODEL_PREDICT_SCRIPT,
+                JSON.stringify(values)
+            );
+            predictor = parsePythonJson(proc.stdout);
+
+            if (proc.code !== 0 || !predictor || predictor.success !== true) {
+                console.error("Prediction step failed:", proc.stderr);
+                return res.status(500).json({
+                    success: false,
+                    error: "Prediction step failed"
+                });
+            }
+        } catch (err) {
+            console.error("Prediction step error:", err.message);
             return res.status(500).json({
                 success: false,
                 error: "Prediction step failed"
             });
         }
-    } catch (err) {
-        console.error("Prediction step error:", err.message);
-        return res.status(500).json({
-            success: false,
-            error: "Prediction step failed"
-        });
     }
 
-    // Step 2: ZK proof generation + verification (Member B's real service).
-    // NOTE: this currently fails locally until Member B's ezkl setup
-    // (SRS/keys) is fixed - see backend-api/README.md. We report the
-    // failure honestly instead of fabricating a proof.
-    let prover;
+    // Step 2: ZK proof generation + verification
+    let prover = null;
+
+    // Try HTTP proving service endpoint first
     try {
-        const proc = await runPython(PROVE_SCRIPT, JSON.stringify(values));
-
-        if (proc.code !== 0) {
-            console.error("Proving step failed:", proc.stderr);
-            return res.status(502).json({
-                success: false,
-                error:
-                    "ZK proof generation is not available right now. " +
-                    "Check that Member B's proving service is set up " +
-                    "(see backend-api/README.md).",
-                prediction: predictor
-            });
-        }
-
-        prover = parsePythonJson(proc.stdout);
-        if (!prover || prover.success !== true) {
-            console.error("Proving step returned an error:", proc.stdout);
-            return res.status(502).json({
-                success: false,
-                error:
-                    "ZK proof generation is not available right now. " +
-                    "Check that Member B's proving service is set up " +
-                    "(see backend-api/README.md).",
-                prediction: predictor
-            });
-        }
-    } catch (err) {
-        console.error("Proving step error:", err.message);
-        return res.status(502).json({
-            success: false,
-            error:
-                "ZK proof generation is not available right now. " +
-                "Check that Member B's proving service is set up " +
-                "(see backend-api/README.md).",
-            prediction: predictor
+        const proveResp = await fetch(`${PROVER_SERVICE_URL}/generate-proof`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input: values })
         });
+
+        if (proveResp.ok) {
+            const genData = await proveResp.json();
+            const proofId = genData.proofId;
+
+            // Verify the generated proof
+            let verified = false;
+            const verifyResp = await fetch(`${PROVER_SERVICE_URL}/verify-proof`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ proofId })
+            });
+            if (verifyResp.ok) {
+                const verifyData = await verifyResp.json();
+                verified = Boolean(verifyData.verified);
+            }
+
+            prover = {
+                success: true,
+                proof: genData.proof,
+                public_output: genData.publicSignals,
+                verified: verified,
+                proofId: proofId
+            };
+        }
+    } catch (e) {
+        // Fallback to local python script
+    }
+
+    if (!prover) {
+        try {
+            const proc = await runPython(PROVE_SCRIPT, JSON.stringify(values));
+
+            if (proc.code !== 0) {
+                console.error("Proving step failed:", proc.stderr);
+                return res.status(502).json({
+                    success: false,
+                    error:
+                        "ZK proof generation is not available right now. " +
+                        "Check that Member B's proving service is set up " +
+                        "(see backend-api/README.md).",
+                    prediction: predictor
+                });
+            }
+
+            prover = parsePythonJson(proc.stdout);
+            if (!prover || prover.success !== true) {
+                console.error("Proving step returned an error:", proc.stdout);
+                return res.status(502).json({
+                    success: false,
+                    error:
+                        "ZK proof generation is not available right now. " +
+                        "Check that Member B's proving service is set up " +
+                        "(see backend-api/README.md).",
+                    prediction: predictor
+                });
+            }
+        } catch (err) {
+            console.error("Proving step error:", err.message);
+            return res.status(502).json({
+                success: false,
+                error:
+                    "ZK proof generation is not available right now. " +
+                    "Check that Member B's proving service is set up " +
+                    "(see backend-api/README.md).",
+                prediction: predictor
+            });
+        }
     }
 
     return res.json({
@@ -493,11 +577,11 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
     console.log("=================================");
     console.log("VERISCORE BACKEND API");
     console.log("=================================");
-console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://${HOST}:${PORT}`);
 console.log(`Health:       GET  http://localhost:${PORT}/api/health`);
 console.log(`Models:       GET  http://localhost:${PORT}/api/models`);
 console.log(`Model detail: GET  http://localhost:${PORT}/api/models/loan-v1`);

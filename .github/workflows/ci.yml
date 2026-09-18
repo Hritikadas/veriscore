@@ -1,0 +1,158 @@
+name: CI - Veriscore Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # 1. Code Quality, Linting & Python Unit Verification
+  # ============================================================================
+  code-quality:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            backend-api/package-lock.json
+            frontend/package-lock.json
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: zk-proving-service/requirements.txt
+
+      - name: Verify Backend Dependencies
+        run: |
+          cd backend-api
+          npm ci
+
+      - name: Verify Frontend Build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Verify Python Model Pipeline
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r zk-proving-service/requirements.txt
+          python model-pipeline/verify_mlp_onnx.py
+
+  # ============================================================================
+  # 2. End-to-End Integration Testing
+  # ============================================================================
+  integration-test:
+    name: End-to-End Test Suite (17/17 Checks)
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: zk-proving-service/requirements.txt
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            backend-api/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r zk-proving-service/requirements.txt
+          cd backend-api && npm ci && cd ..
+          cd frontend && npm ci && cd ..
+
+      - name: Start ZK Proving Service
+        run: |
+          cd zk-proving-service
+          python -m uvicorn api_server:app --port 8000 --host 127.0.0.1 &
+          cd ..
+          sleep 5
+
+      - name: Start Backend API
+        run: |
+          cd backend-api
+          node server.js &
+          cd ..
+          sleep 3
+
+      - name: Start Frontend Preview
+        run: |
+          cd frontend
+          npm run dev &
+          cd ..
+          sleep 3
+
+      - name: Run E2E Test Suite
+        run: |
+          python e2e_test.py
+
+  # ============================================================================
+  # 3. Docker Image Build Validation (Multi-Container)
+  # ============================================================================
+  docker-build-check:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ZK Prover Container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: zk-proving-service/Dockerfile
+          push: false
+          tags: veriscore-zk-prover:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Backend API Container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend-api/Dockerfile
+          push: false
+          tags: veriscore-backend-api:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Frontend Container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: false
+          tags: veriscore-frontend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
