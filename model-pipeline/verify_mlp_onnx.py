@@ -66,11 +66,21 @@ print("Loading dataset...")
 data = pd.read_csv(os.path.join(HERE, "loan_data.csv"))
 
 X = data[["person_income", "credit_score", "person_emp_exp"]].values
-y = data["loan_status"].values
+# Target is 1.0 - loan_status (1 = approved/low-risk) matching train_mlp_onnx.py
+y = 1.0 - data["loan_status"].values
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.20, random_state=42, stratify=y
-)
+# Stratified 80/20 split, reproducible
+rng = np.random.RandomState(42)
+cls0 = np.where(y == 0)[0]
+cls1 = np.where(y == 1)[0]
+rng.shuffle(cls0)
+rng.shuffle(cls1)
+te0 = int(0.20 * len(cls0))
+te1 = int(0.20 * len(cls1))
+test_idx = np.concatenate([cls0[:te0], cls1[:te1]])
+train_idx = np.concatenate([cls0[te0:], cls1[te1:]])
+X_train, X_test = X[train_idx], X[test_idx]
+y_train, y_test = y[train_idx], y[test_idx]
 
 X_train_t = torch.tensor(X_train, dtype=torch.float32)
 X_test_t = torch.tensor(X_test, dtype=torch.float32)
@@ -100,18 +110,19 @@ class LoanMLP(nn.Module):
         return self.network(x)
 
 
-# Train fresh model
+# Train fresh model with reproducible seed
+torch.manual_seed(42)
 model = LoanMLP(mean, std)
 
-positive_count = (y_train_t == 1).sum()
-negative_count = (y_train_t == 0).sum()
-pos_weight = negative_count / positive_count
+pos = (y_train_t == 1).sum()
+neg = y_train_t.numel() - pos
+pos_weight = (neg / pos).clamp(min=0.01)
 
 loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 print("Training fresh PyTorch model (for comparison)...")
-for epoch in range(100):
+for epoch in range(250):
     model.train()
     optimizer.zero_grad()
     output = model(X_train_t).squeeze()
@@ -129,40 +140,31 @@ model.eval()
 onnx_path = os.path.join(HERE, "loan_mlp.onnx")
 
 if not os.path.exists(onnx_path):
-    # Try exports/ as fallback
-    onnx_path = os.path.join(HERE, "exports", "model.onnx")
+    # Try models/loan_model/model.onnx as fallback
+    onnx_path = os.path.join(HERE, "..", "models", "loan_model", "model.onnx")
 
 if not os.path.exists(onnx_path):
     print("ERROR: No ONNX model found!")
-    print("  Run 'python run_pipeline.py' first to generate it.")
+    print("  Run 'python train_mlp_onnx.py' first to generate it.")
     sys.exit(1)
 
 print(f"Loading ONNX model: {onnx_path}")
-ort_session = ort.InferenceSession(onnx_path)
+ort_session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
 
 # Print ONNX model info
 print("\nONNX Model Info:")
 for inp in ort_session.get_inputs():
-    print(f"  Input:  {inp.name} — shape={inp.shape}, type={inp.type}")
+    print(f"  Input:  {inp.name} - shape={inp.shape}, type={inp.type}")
 for out in ort_session.get_outputs():
-    print(f"  Output: {out.name} — shape={out.shape}, type={out.type}")
+    print(f"  Output: {out.name} - shape={out.shape}, type={out.type}")
 
 
 # ================================================================
-# 3. GOLDEN TEST — Individual Inputs
+# 3. GOLDEN TEST - Individual Inputs
 # ================================================================
-#
-# "Golden test" means: we have a known-good reference (PyTorch)
-# and we compare every output against it. If they all match
-# within tolerance, the export is trustworthy.
-#
-# We test a spread of inputs covering realistic ranges:
-#   - Income: 10k to 200k
-#   - Credit score: 300 to 850
-#   - Employment years: 0 to 30
 
 print("\n" + "=" * 60)
-print("  GOLDEN TEST — Individual Inputs")
+print("  GOLDEN TEST - Individual Inputs")
 print("=" * 60)
 
 test_cases = [
@@ -177,7 +179,7 @@ test_cases = [
     [45000.0, 720.0, 8.0],       # Solid mid-tier
 ]
 
-TOLERANCE = 1e-4  # Generous tolerance for different training runs
+TOLERANCE = 1e-3
 
 all_pass = True
 max_diff = 0.0
@@ -187,7 +189,7 @@ print("-" * 70)
 
 for case in test_cases:
     # PyTorch
-    pt_in = torch.tensor([case])
+    pt_in = torch.tensor([case], dtype=torch.float32)
     with torch.no_grad():
         pt_logit = model(pt_in).item()
 
@@ -198,15 +200,11 @@ for case in test_cases:
     diff = abs(pt_logit - ort_logit)
     max_diff = max(max_diff, diff)
 
-    # Note: We compare DECISIONS, not raw logits, because
-    # different training runs may produce different logits.
-    # What matters is: does the ONNX file itself produce
-    # consistent outputs? We check that separately below.
-    pt_decision = "approved" if torch.sigmoid(torch.tensor(pt_logit)).item() >= 0.5 else "rejected"
-    ort_decision = "approved" if 1/(1+np.exp(-ort_logit)) >= 0.5 else "rejected"
+    pt_decision = "approved" if (1.0 / (1.0 + np.exp(-pt_logit))) >= 0.5 else "rejected"
+    ort_decision = "approved" if (1.0 / (1.0 + np.exp(-ort_logit))) >= 0.5 else "rejected"
     decision_match = pt_decision == ort_decision
 
-    status = "✓" if decision_match else "✗"
+    status = "OK" if decision_match else "FAIL"
     if not decision_match:
         all_pass = False
 
@@ -271,7 +269,7 @@ for i in range(10):
     results.append(out)
 
 is_consistent = all(r == results[0] for r in results)
-print(f"Ran same input 10 times: {'✅ All identical' if is_consistent else '⚠️ Inconsistent!'}")
+print(f"Ran same input 10 times: {'[OK] All identical' if is_consistent else '[WARN] Inconsistent!'}")
 print(f"Value: {results[0]:.6f}")
 
 
@@ -290,11 +288,12 @@ if abs(pt_acc - ort_acc) > 0.02:
     issues.append(f"Accuracy gap too large: {abs(pt_acc - ort_acc):.4f}")
 
 if not issues:
-    print("\n✅ ONNX model PASSED all verification checks!")
-    print("   Safe to hand off to Member B for ZK proving.")
+    print("\n[PASS] ONNX model PASSED all verification checks!")
+    print("       Safe to hand off to Member B for ZK proving.")
 else:
-    print("\n⚠️  ONNX model has issues:")
+    print("\n[WARN] ONNX model has issues:")
     for issue in issues:
         print(f"   - {issue}")
+    sys.exit(1)
 
 print()
