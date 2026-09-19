@@ -1,0 +1,14 @@
+# ==============================================================================
+# Render Production Runtime Dependencies (No torch — not needed at runtime)
+# ==============================================================================
+# torch is only required by make_toy_model.py (dev tool) and model-pipeline/
+# training scripts. The runtime prover_service.py only uses ezkl, onnxruntime,
+# and numpy. Excluding torch saves ~2GB of install size and ~700MB of RAM,
+# making the service deployable within Render's free tier (512MB RAM).
+# ==============================================================================
+ezkl>=15.0.0
+onnx>=1.15.0
+onnxruntime>=1.17.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+numpy>=1.26.0

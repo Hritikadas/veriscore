@@ -1,6 +1,13 @@
 # ==============================================================================
-# Veriscore Render Blueprint Specification (render.yaml)
-# Multi-Layer Zero-Knowledge AI Credit Decision Stack
+# Veriscore Render Blueprint — FREE TIER Deployment
+# ==============================================================================
+# Render free tier does NOT support Docker. This Blueprint uses native runtimes:
+#   - ZK Prover:   Python 3.11 (native)
+#   - Backend API: Node.js 20 (native)
+#   - Frontend:    Static Site (built by Vite, served by Render CDN)
+#
+# IMPORTANT: Render free web services spin down after 15 min of inactivity.
+# The first request after spin-down takes ~30-60s (cold start + ZK key setup).
 # ==============================================================================
 
 services:
@@ -9,46 +16,71 @@ services:
   # ----------------------------------------------------------------------------
   - type: web
     name: veriscore-zk-prover
-    runtime: docker
-    dockerfilePath: zk-proving-service/Dockerfile
-    dockerContext: .
-    plan: starter
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r zk-proving-service/requirements-render.txt
+    startCommand: cd zk-proving-service && uvicorn api_server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: HOME
-        value: /app
+        value: /tmp
+      - key: PYTHON_VERSION
+        value: "3.11.0"
 
   # ----------------------------------------------------------------------------
-  # 2. Backend API Gateway (Node.js Express + ZK Orchestrator)
+  # 2. Backend API Gateway (Node.js Express)
   # ----------------------------------------------------------------------------
   - type: web
     name: veriscore-backend-api
-    runtime: docker
-    dockerfilePath: backend-api/Dockerfile
-    dockerContext: .
-    plan: starter
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: cd backend-api && npm ci
+    startCommand: cd backend-api && node server.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: PORT
+        value: "5000"
+      - key: HOST
+        value: "0.0.0.0"
       - key: PROVER_SERVICE_URL
         fromService:
           type: web
           name: veriscore-zk-prover
-          property: host
+          property: hostport
+          envVarKey: RENDER_EXTERNAL_URL
 
   # ----------------------------------------------------------------------------
-  # 3. Frontend Web Application (React + Vite + High-Performance Nginx)
+  # 3. Frontend — Render Static Site (React + Vite → CDN)
+  #    No Docker, no Nginx. Render serves the built dist/ folder directly.
+  #    VITE_API_URL is baked into the JS bundle at build time.
   # ----------------------------------------------------------------------------
   - type: web
     name: veriscore-frontend
-    runtime: docker
-    dockerfilePath: frontend/Dockerfile
-    dockerContext: .
-    plan: starter
-    healthCheckPath: /
+    runtime: static
+    plan: free
+    region: oregon
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
-      - key: NODE_ENV
-        value: production
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: veriscore-backend-api
+          property: hostport
+          envVarKey: RENDER_EXTERNAL_URL
