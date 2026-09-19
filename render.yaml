@@ -1,0 +1,54 @@
+# ==============================================================================
+# Veriscore Render Blueprint Specification (render.yaml)
+# Multi-Layer Zero-Knowledge AI Credit Decision Stack
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. ZK Proving Microservice (FastAPI + ezkl + ONNX Runtime)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: veriscore-zk-prover
+    runtime: docker
+    dockerfilePath: zk-proving-service/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: HOME
+        value: /app
+
+  # ----------------------------------------------------------------------------
+  # 2. Backend API Gateway (Node.js Express + ZK Orchestrator)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: veriscore-backend-api
+    runtime: docker
+    dockerfilePath: backend-api/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PROVER_SERVICE_URL
+        fromService:
+          type: web
+          name: veriscore-zk-prover
+          property: host
+
+  # ----------------------------------------------------------------------------
+  # 3. Frontend Web Application (React + Vite + High-Performance Nginx)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: veriscore-frontend
+    runtime: docker
+    dockerfilePath: frontend/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
