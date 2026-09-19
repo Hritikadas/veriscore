@@ -1,0 +1,47 @@
+# ==============================================================================
+# Veriscore ZK Prover — Render Free Tier Dockerfile
+# Same as main Dockerfile but uses requirements-render.txt (no torch, saves
+# ~2GB install + ~700MB RAM, keeping within Render's 512MB free limit).
+# Binds to $PORT (Render assigns it dynamically).
+# ==============================================================================
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/app \
+    PYTHONPATH=/app/zk-proving-service
+
+WORKDIR /app
+
+# Install system libraries (libgomp for ONNX Runtime, curl for healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies — render variant excludes torch (not needed at runtime)
+COPY zk-proving-service/requirements-render.txt /app/zk-proving-service/requirements-render.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /app/zk-proving-service/requirements-render.txt
+
+# Copy source code, models, and pipeline artifacts
+COPY zk-proving-service/ /app/zk-proving-service/
+COPY models/ /app/models/
+COPY model-pipeline/ /app/model-pipeline/
+
+# Ensure artifacts directory exists and is writable
+RUN mkdir -p /app/artifacts/proofs
+
+# Non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
+WORKDIR /app/zk-proving-service
+
+# Render assigns the port dynamically via $PORT env var
+EXPOSE 8000
+
+CMD uvicorn api_server:app --host 0.0.0.0 --port ${PORT:-8000}

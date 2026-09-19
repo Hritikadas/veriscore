@@ -1,0 +1,24 @@
+# ==============================================================================
+# Veriscore Backend API — Render Free Tier Dockerfile
+# Binds to $PORT (Render assigns it dynamically, not hardcoded 5000).
+# ==============================================================================
+FROM node:20-alpine
+
+ENV NODE_ENV=production \
+    HOST=0.0.0.0
+
+WORKDIR /app
+
+RUN apk add --no-cache curl
+
+COPY backend-api/package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+COPY backend-api/ ./
+
+USER node
+
+# Render assigns PORT dynamically — do NOT hardcode it
+EXPOSE 5000
+
+CMD ["node", "server.js"]

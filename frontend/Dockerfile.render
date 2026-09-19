@@ -1,0 +1,36 @@
+# ==============================================================================
+# Veriscore Frontend — Render Free Tier Dockerfile
+# Uses envsubst to inject $PORT and $BACKEND_URL into nginx config at startup.
+# Render assigns PORT dynamically; BACKEND_URL points to the backend's public URL.
+# ==============================================================================
+
+# --- Stage 1: Build ---
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+# --- Stage 2: Production ---
+FROM nginx:1.27-alpine AS runner
+
+RUN rm -rf /usr/share/nginx/html/*
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy the template (uses $PORT and $BACKEND_URL placeholders)
+COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
+
+EXPOSE 80
+
+# Render sets $PORT dynamically. Nginx's docker image auto-runs envsubst on
+# files in /etc/nginx/templates/ and outputs to /etc/nginx/conf.d/ at startup.
+# We just need to make sure BACKEND_URL has a default.
+ENV BACKEND_URL=http://localhost:5000
+ENV PORT=80
+
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,50 +1,42 @@
-# Deploying Veriscore to Render (Free Tier)
+# Deploying Veriscore on Render — FREE with Docker
 
-This guide deploys the entire multi-layer **Veriscore** ZK-AI stack to [Render](https://render.com) using the **free tier** — no credit card required.
+Deploy the full **Veriscore** multi-layer ZK-AI stack to [Render](https://render.com) using **Docker containers on the free tier**. No credit card required.
 
 ---
 
-## Architecture on Render Free Tier
+## Architecture
 
 ```mermaid
 flowchart TD
-    Client["Browser"] -->|HTTPS| Frontend["veriscore-frontend\n(Render Static Site / CDN)\nFREE"]
-    Frontend -->|"fetch('/api/...')"| Backend["veriscore-backend-api\n(Node.js 20 Web Service)\nFREE"]
-    Backend -->|"Internal HTTPS"| Prover["veriscore-zk-prover\n(Python 3.11 Web Service)\nFREE"]
+    Client["Browser"] -->|HTTPS| Frontend["veriscore-frontend\n(Docker: Nginx + React)\nFREE"]
+    Frontend -->|"nginx proxy /api/*"| Backend["veriscore-backend-api\n(Docker: Node.js Express)\nFREE"]
+    Backend -->|"HTTPS"| Prover["veriscore-zk-prover\n(Docker: FastAPI + EZKL)\nFREE"]
 ```
 
-> **Key difference from Docker**: Render's free tier uses **native runtimes** (not Docker).
-> The frontend is served from Render's global CDN as a static site, and calls the backend
-> API directly via its public URL (no nginx reverse proxy needed).
+| # | Service | Dockerfile | Base Image | Cost |
+|---|---------|-----------|------------|------|
+| 1 | `veriscore-zk-prover` | `zk-proving-service/Dockerfile.render` | `python:3.11-slim` | **Free** |
+| 2 | `veriscore-backend-api` | `backend-api/Dockerfile.render` | `node:20-alpine` | **Free** |
+| 3 | `veriscore-frontend` | `frontend/Dockerfile.render` | `nginx:1.27-alpine` | **Free** |
 
-| # | Service | Render Type | Runtime | Cost |
-|---|---------|-------------|---------|------|
-| 1 | `veriscore-zk-prover` | Web Service | Python 3.11 | **Free** |
-| 2 | `veriscore-backend-api` | Web Service | Node.js 20 | **Free** |
-| 3 | `veriscore-frontend` | Static Site | Vite Build → CDN | **Free** |
+### What's Different from the Local Docker Setup?
 
----
-
-## Free Tier Limitations
-
-| Constraint | Impact |
-| :--- | :--- |
-| **512 MB RAM** per service | torch is excluded from the ZK prover (not needed at runtime) to stay within limit |
-| **Spins down after 15 min** of no traffic | First request after idle takes ~30-60s (cold start + ZK circuit setup) |
-| **Ephemeral filesystem** | ZK setup artifacts (proving.key, verifying.key) are regenerated on every cold start |
-| **750 free build hours/month** | Shared across all services |
+| Aspect | Local (`docker compose`) | Render Free Docker |
+| :--- | :--- | :--- |
+| Port assignment | Hardcoded (8000, 5000, 80) | Dynamic via `$PORT` env var |
+| Inter-service networking | Docker bridge DNS (`backend-api:5000`) | Public `.onrender.com` URLs |
+| torch dependency | Included (~2GB) | Excluded via `requirements-render.txt` (not needed at runtime) |
+| Nginx API proxy target | `http://backend-api:5000` | `$BACKEND_URL` (envsubst at startup) |
 
 ---
 
-## Deployment Steps
+## Deploy in 3 Steps
 
-### Step 1: Push the Blueprint to GitHub
-
-The [`render.yaml`](../render.yaml) Blueprint file is already in your repository. If you haven't pushed it yet:
+### Step 1: Push to GitHub
 
 ```powershell
-git add render.yaml zk-proving-service/requirements-render.txt docs/render-deployment-guide.md
-git commit -m "feat(render): free tier Blueprint with native runtimes"
+git add -A
+git commit -m "feat(render): Docker free tier deployment"
 git push origin main
 ```
 
@@ -52,89 +44,68 @@ git push origin main
 
 1. Open [https://dashboard.render.com](https://dashboard.render.com) and sign in with GitHub.
 2. Click **"New +"** (top right) → **"Blueprint"**.
-3. Connect your GitHub account if not already connected.
-4. Select the **`Hritikadas/veriscore`** repository.
-5. Enter a Blueprint Instance name (e.g., `veriscore`).
-6. Click **"Apply"**.
+3. Select the **`Hritikadas/veriscore`** repository.
+4. Enter a name (e.g., `veriscore`) → click **"Apply"**.
 
-Render reads `render.yaml` and automatically creates all 3 services, wires their environment variables, and starts building.
+Render reads `render.yaml` and creates all 3 Docker services automatically.
 
-### Step 3: Wait for Builds to Complete
+### Step 3: Wait and Verify
 
-Watch the Render Dashboard. Each service will show:
-- **Building** → Installing dependencies and compiling
-- **Live** → Service is up and accepting traffic
+- Builds take **~10-15 minutes** (the ZK prover image is the largest).
+- Once all 3 show **"Live"**, open `https://veriscore-frontend.onrender.com`.
+- Submit a test loan: Income `100000`, Credit `800`, Employment `10`.
 
-The ZK Prover build takes the longest (~5-8 min) because it installs `ezkl` and `onnxruntime`.
-
-### Step 4: Verify the Deployment
-
-Once all three services show **"Live"**:
-
-1. Open the **frontend URL** (e.g., `https://veriscore-frontend.onrender.com`).
-2. Submit a test loan decision:
-   - Annual Income: `100000`
-   - Credit Score: `800`
-   - Employment: `10` years
-3. The first request triggers ZK circuit setup (~30s on cold start). Subsequent requests are fast (~1-3s).
+> **First request takes ~30-60s** (cold start + ZK circuit key generation). Subsequent requests are fast (~1-3s).
 
 ---
 
-## Manual Deployment (Without Blueprint)
+## Manual Setup (Without Blueprint)
 
-If you prefer to set up each service individually:
+### 1. Deploy ZK Prover
+- **New +** → **Web Service** → select `Hritikadas/veriscore`
+- **Runtime**: Docker
+- **Dockerfile Path**: `zk-proving-service/Dockerfile.render`
+- **Docker Build Context**: `.`
+- **Plan**: Free
+- **Env Vars**: `PYTHONUNBUFFERED=1`, `HOME=/app`
+- Copy the URL (e.g., `https://veriscore-zk-prover.onrender.com`)
 
-### Service 1: ZK Prover
+### 2. Deploy Backend API
+- **New +** → **Web Service** → select `Hritikadas/veriscore`
+- **Runtime**: Docker
+- **Dockerfile Path**: `backend-api/Dockerfile.render`
+- **Docker Build Context**: `.`
+- **Plan**: Free
+- **Env Vars**: `NODE_ENV=production`, `HOST=0.0.0.0`, `PROVER_SERVICE_URL=https://veriscore-zk-prover.onrender.com`
+- Copy the URL (e.g., `https://veriscore-backend-api.onrender.com`)
 
-1. Render Dashboard → **New +** → **Web Service** → select `Hritikadas/veriscore`.
-2. Configure:
-   - **Name**: `veriscore-zk-prover`
-   - **Runtime**: Python 3
-   - **Build Command**: `pip install -r zk-proving-service/requirements-render.txt`
-   - **Start Command**: `cd zk-proving-service && uvicorn api_server:app --host 0.0.0.0 --port $PORT`
-   - **Plan**: Free
-3. Environment Variables:
-   - `PYTHONUNBUFFERED` = `1`
-   - `HOME` = `/tmp`
-   - `PYTHON_VERSION` = `3.11.0`
-4. Click **Create Web Service**.
-5. **Copy the live URL** (e.g., `https://veriscore-zk-prover.onrender.com`).
+### 3. Deploy Frontend
+- **New +** → **Web Service** → select `Hritikadas/veriscore`
+- **Runtime**: Docker
+- **Dockerfile Path**: `frontend/Dockerfile.render`
+- **Docker Build Context**: `.`
+- **Plan**: Free
+- **Env Vars**: `BACKEND_URL=https://veriscore-backend-api.onrender.com`
 
-### Service 2: Backend API
+---
 
-1. **New +** → **Web Service** → select `Hritikadas/veriscore`.
-2. Configure:
-   - **Name**: `veriscore-backend-api`
-   - **Runtime**: Node
-   - **Build Command**: `cd backend-api && npm ci`
-   - **Start Command**: `cd backend-api && node server.js`
-   - **Plan**: Free
-3. Environment Variables:
-   - `NODE_ENV` = `production`
-   - `PROVER_SERVICE_URL` = `https://veriscore-zk-prover.onrender.com` *(paste the URL from step 1)*
-4. Click **Create Web Service**.
-5. **Copy the live URL** (e.g., `https://veriscore-backend-api.onrender.com`).
+## Free Tier Limits
 
-### Service 3: Frontend (Static Site)
-
-1. **New +** → **Static Site** → select `Hritikadas/veriscore`.
-2. Configure:
-   - **Name**: `veriscore-frontend`
-   - **Build Command**: `cd frontend && npm ci && npm run build`
-   - **Publish Directory**: `frontend/dist`
-3. Environment Variables:
-   - `VITE_API_URL` = `https://veriscore-backend-api.onrender.com` *(paste the URL from step 2)*
-4. Add a **Rewrite Rule**: Source `/*` → Destination `/index.html` (for SPA routing).
-5. Click **Create Static Site**.
+| Constraint | Detail |
+| :--- | :--- |
+| **RAM** | 512 MB per service (torch excluded to fit) |
+| **CPU** | 0.1 vCPU |
+| **Sleep** | Spins down after 15 min inactivity; ~30-60s cold start |
+| **Hours** | 750 free instance-hours/month shared across services |
+| **Filesystem** | Ephemeral — ZK keys regenerated on each cold start |
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
+| Problem | Fix |
 | :--- | :--- |
-| Frontend loads but API calls fail | Ensure `VITE_API_URL` is set to the backend's full `https://...onrender.com` URL and **redeploy** the frontend (Vite bakes env vars at build time). |
-| "Service unavailable" on first request | Normal — the free tier spins down after 15 min. Wait 30-60s for cold start + ZK setup. |
-| ZK Prover build fails (out of memory) | Verify you're using `requirements-render.txt` (without `torch`). |
-| Backend can't reach ZK Prover | Check `PROVER_SERVICE_URL` env var on the backend service points to the correct prover URL. |
-| CORS errors in browser console | The backend already has `app.use(cors())` enabled. If it persists, check the backend is actually running (not spun down). |
+| Frontend loads but API calls fail (CORS/404) | Check `BACKEND_URL` env var on the frontend service points to the backend's full `https://...onrender.com` URL. Redeploy the frontend service. |
+| "Service unavailable" on first visit | Normal cold start on free tier. Wait 30-60s. |
+| ZK Prover crashes (out of memory) | Ensure `Dockerfile.render` uses `requirements-render.txt` (not the regular one with torch). |
+| Backend can't reach ZK Prover | Check `PROVER_SERVICE_URL` on the backend points to the prover's `.onrender.com` URL. |
