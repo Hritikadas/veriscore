@@ -24,10 +24,12 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Nginx config template (only needs $PORT substitution — no proxy)
 COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
+RUN sed -i 's/\r$//' /etc/nginx/templates/default.conf.template
 
 # Custom entrypoint: writes __runtime_config.js with BACKEND_URL before nginx starts
 COPY frontend/docker-entrypoint-render.sh /docker-entrypoint-render.sh
-RUN chmod +x /docker-entrypoint-render.sh
+# Fix Windows CRLF → Linux LF (critical: #!/bin/sh fails with \r)
+RUN sed -i 's/\r$//' /docker-entrypoint-render.sh && chmod +x /docker-entrypoint-render.sh
 
 # Defaults (overridden by Render env vars at runtime)
 ENV BACKEND_URL=http://localhost:5000
