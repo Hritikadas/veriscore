@@ -1,7 +1,7 @@
 # ==============================================================================
 # Veriscore Frontend — Render Free Tier Dockerfile
-# Uses envsubst to inject $PORT and $BACKEND_URL into nginx config at startup.
-# Render assigns PORT dynamically; BACKEND_URL points to the backend's public URL.
+# Uses a custom entrypoint to inject BACKEND_URL into a runtime JS config file.
+# The frontend calls the backend directly (no nginx reverse proxy needed).
 # ==============================================================================
 
 # --- Stage 1: Build ---
@@ -22,22 +22,20 @@ RUN rm -rf /usr/share/nginx/html/*
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy the template (uses $PORT and $BACKEND_URL placeholders)
+# Nginx config template (only needs $PORT substitution — no proxy)
 COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
 
-# Render sets $PORT dynamically. The official nginx Docker image auto-runs
-# envsubst on files in /etc/nginx/templates/ and writes the result to
-# /etc/nginx/conf.d/ at container startup.
-#
-# NGINX_ENVSUBST_TEMPLATE_DIR and NGINX_ENVSUBST_OUTPUT_DIR are pre-set by
-# the official image. We only need to ensure BACKEND_URL and PORT have defaults.
+# Custom entrypoint: writes __runtime_config.js with BACKEND_URL before nginx starts
+COPY frontend/docker-entrypoint-render.sh /docker-entrypoint-render.sh
+RUN chmod +x /docker-entrypoint-render.sh
+
+# Defaults (overridden by Render env vars at runtime)
 ENV BACKEND_URL=http://localhost:5000
 ENV PORT=80
 
-# Tell the nginx entrypoint to ONLY substitute these two variables,
-# leaving nginx's own $uri, $host, $proxy_host, etc. untouched.
-ENV NGINX_ENVSUBST_FILTER="^(PORT|BACKEND_URL)$"
+# Only substitute PORT in the nginx template (not $uri, $host, etc.)
+ENV NGINX_ENVSUBST_FILTER="^PORT$"
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint-render.sh"]

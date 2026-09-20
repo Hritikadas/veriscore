@@ -3,11 +3,6 @@ server {
     listen [::]:${PORT};
     server_name localhost;
 
-    # DNS resolver for runtime resolution of external BACKEND_URL
-    # Required because proxy_pass targets an external HTTPS domain
-    resolver 8.8.8.8 1.1.1.1 valid=30s ipv6=off;
-    resolver_timeout 10s;
-
     root /usr/share/nginx/html;
     index index.html;
 
@@ -37,30 +32,10 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # Reverse Proxy to Backend API (external HTTPS URL via BACKEND_URL env var)
-    # Uses a variable so nginx resolves DNS at request time, not just at startup
-    location /api/ {
-        set $backend_upstream "${BACKEND_URL}";
-        proxy_pass $backend_upstream/api/;
-        proxy_http_version 1.1;
-
-        # Required for HTTPS upstream (external Render URL)
-        proxy_ssl_server_name on;
-        proxy_ssl_protocols TLSv1.2 TLSv1.3;
-
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $proxy_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-
-        # Generous timeout for ZK proof generation
-        proxy_connect_timeout 120s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
-    }
+    # No /api/ reverse proxy needed for Render deployment.
+    # The frontend calls the backend directly via window.__RUNTIME_CONFIG__.API_URL
+    # (injected by docker-entrypoint-render.sh at container start).
+    # CORS is enabled on the backend (app.use(cors())).
 
     error_page 500 502 503 504 /50x.html;
     location = /50x.html {

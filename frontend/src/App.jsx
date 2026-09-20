@@ -12,7 +12,7 @@ import BlockchainPanel from "./components/BlockchainPanel.jsx";
 import RegistryPanel from "./components/RegistryPanel.jsx";
 import { IconAlert } from "./components/icons.jsx";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = window.__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || "";
 
 const MSG_SERVICE_DOWN =
   "Verification service unavailable. Confirm the backend (port 5000) and ZK proving service (port 8000) are running, then try again.";

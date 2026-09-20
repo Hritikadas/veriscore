@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || "";
+// Runtime config is injected by docker-entrypoint-render.sh at container start.
+// Falls back to Vite build-time env, then empty string (same-origin, for local dev).
+const API_URL = window.__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || "";
 
 export async function fetchModels() {
   const res = await fetch(`${API_URL}/api/models`);
