@@ -25,12 +25,19 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy the template (uses $PORT and $BACKEND_URL placeholders)
 COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
 
-EXPOSE 80
-
-# Render sets $PORT dynamically. Nginx's docker image auto-runs envsubst on
-# files in /etc/nginx/templates/ and outputs to /etc/nginx/conf.d/ at startup.
-# We just need to make sure BACKEND_URL has a default.
+# Render sets $PORT dynamically. The official nginx Docker image auto-runs
+# envsubst on files in /etc/nginx/templates/ and writes the result to
+# /etc/nginx/conf.d/ at container startup.
+#
+# NGINX_ENVSUBST_TEMPLATE_DIR and NGINX_ENVSUBST_OUTPUT_DIR are pre-set by
+# the official image. We only need to ensure BACKEND_URL and PORT have defaults.
 ENV BACKEND_URL=http://localhost:5000
 ENV PORT=80
+
+# Tell the nginx entrypoint to ONLY substitute these two variables,
+# leaving nginx's own $uri, $host, $proxy_host, etc. untouched.
+ENV NGINX_ENVSUBST_FILTER="^(PORT|BACKEND_URL)$"
+
+EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
