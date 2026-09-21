@@ -1280,6 +1280,125 @@ h1, h2, h3 {
   }
 }
 
+/* ---------- mobile hero and header ---------- */
+
+@media (max-width: 768px) {
+  .topbar-inner {
+    height: 68px;
+    padding: 0 20px;
+    gap: 10px;
+  }
+
+  .topbar .brand-logo,
+  .topbar .brand-logo.fallback-only {
+    width: 140px;
+    height: 34px;
+  }
+
+  .topbar .brand-img {
+    height: 34px;
+    width: auto;
+  }
+
+  .topbar .nav {
+    display: none;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+  }
+
+  .theme-toggle {
+    font-size: 10px;
+  }
+
+  .theme-option {
+    padding: 5px 6px;
+  }
+
+  .health {
+    font-size: 0;
+    padding: 8px 9px;
+  }
+
+  .hero {
+    min-height: 100dvh;
+    padding: 96px 0 40px;
+  }
+
+  .hero-video {
+    opacity: 0.56;
+  }
+
+  .hero-video-overlay {
+    background: linear-gradient(
+      180deg,
+      rgba(245, 249, 255, 0.82) 0%,
+      rgba(245, 249, 255, 0.72) 42%,
+      rgba(245, 249, 255, 0.44) 100%
+    );
+  }
+
+  :root[data-theme="dark"] .hero-video-overlay {
+    background: linear-gradient(
+      180deg,
+      rgba(5, 12, 28, 0.82) 0%,
+      rgba(5, 12, 28, 0.7) 42%,
+      rgba(5, 12, 28, 0.48) 100%
+    );
+  }
+
+  .hero-inner {
+    display: block;
+    max-width: 100%;
+    padding: 0 20px;
+    text-align: center;
+  }
+
+  .hero-copy {
+    align-items: center;
+    gap: 14px;
+  }
+
+  .hero-badge {
+    padding: 5px 10px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .hero h1 {
+    max-width: 390px;
+    font-size: clamp(38px, 10.4vw, 44px);
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+  .hero-sub {
+    max-width: 360px;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .hero-cta {
+    width: min(100%, 340px);
+    min-height: 48px;
+  }
+
+  .hero-copy .trust-row {
+    width: min(100%, 360px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 10px 14px;
+    margin-top: 6px;
+  }
+
+  .hero-copy .trust-item {
+    justify-content: flex-start;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}
+
 /* ---------- shared pipeline ---------- */
 
 .pipe {

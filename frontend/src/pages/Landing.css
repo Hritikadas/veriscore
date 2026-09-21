@@ -543,6 +543,152 @@
   }
 }
 
+@media (max-width: 768px) {
+  .landing {
+    min-height: 100dvh;
+    background-position: 68% 22%;
+  }
+
+  .landing::before {
+    background: rgba(248, 250, 252, 0.86);
+  }
+
+  :root[data-theme="dark"] .landing::before {
+    background: rgba(6, 13, 24, 0.78);
+  }
+
+  .lnd-header {
+    min-height: 68px;
+    padding: 12px 20px 0;
+    align-items: center;
+  }
+
+  .lnd-header .brand-logo,
+  .lnd-header .brand-img {
+    width: 140px;
+    height: auto;
+  }
+
+  .lnd-hero {
+    max-width: 100%;
+    padding: 112px 20px 36px;
+    align-items: flex-start;
+  }
+
+  .lnd-copy {
+    max-width: 100%;
+    gap: 12px;
+  }
+
+  .lnd-eyebrow {
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 5px 10px;
+    font-size: 9.5px;
+    letter-spacing: 0.09em;
+  }
+
+  .lnd-copy h1 {
+    max-width: 390px;
+    font-size: clamp(38px, 10.4vw, 44px);
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+  .lnd-sub {
+    max-width: 360px;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .lnd-cta-row,
+  .lnd-btn-lg {
+    width: 100%;
+  }
+
+  .lnd-btn-lg {
+    min-height: 48px;
+  }
+
+  .lnd-trust {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+    margin-top: 6px;
+  }
+
+  .landing .trust-item {
+    justify-content: flex-start;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .lnd-microline {
+    max-width: 340px;
+    font-size: 10px;
+    line-height: 1.45;
+  }
+}
+
+@media (max-width: 768px) and (max-height: 650px) {
+  .lnd-header {
+    min-height: 60px;
+    padding-top: 8px;
+  }
+
+  .lnd-header .brand-logo,
+  .lnd-header .brand-img {
+    width: 130px;
+  }
+
+  .lnd-hero {
+    padding-top: 82px;
+    padding-bottom: 20px;
+  }
+
+  .lnd-copy {
+    gap: 8px;
+  }
+
+  .lnd-eyebrow {
+    padding-block: 4px;
+    font-size: 9px;
+  }
+
+  .lnd-tagline {
+    font-size: 12px;
+  }
+
+  .lnd-copy h1 {
+    font-size: 38px;
+    line-height: 1.05;
+  }
+
+  .lnd-sub {
+    max-width: 350px;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .lnd-btn-lg {
+    min-height: 44px;
+    height: 44px;
+  }
+
+  .lnd-trust {
+    gap: 6px 12px;
+    margin-top: 2px;
+  }
+
+  .landing .trust-item {
+    font-size: 11px;
+  }
+
+  .lnd-microline {
+    font-size: 9px;
+  }
+}
+
 :root[data-theme="dark"] .lnd-header {
   background: rgba(7, 20, 42, 0.45);
   border-bottom-color: rgba(255, 255, 255, 0.12);
