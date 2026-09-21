@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
@@ -11,6 +12,7 @@ import ClientVerifyPanel from "./components/ClientVerifyPanel.jsx";
 import BlockchainPanel from "./components/BlockchainPanel.jsx";
 import RegistryPanel from "./components/RegistryPanel.jsx";
 import { IconAlert } from "./components/icons.jsx";
+import { ThemeProvider } from "./theme.jsx";
 
 const API_URL = window.__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || "";
 
@@ -76,9 +78,7 @@ function buildError(error) {
     : msg;
 }
 
-function App() {
-  const [view, setView] = useState("landing"); // "landing" | "app"
-
+function VerificationPage() {
   const [income, setIncome] = useState("");
   const [creditScore, setCreditScore] = useState("");
   const [yearsEmployed, setYearsEmployed] = useState("");
@@ -92,10 +92,8 @@ function App() {
   const [registryError, setRegistryError] = useState(null);
 
   useEffect(() => {
-    if (view === "app") {
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
-  }, [view]);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,16 +200,11 @@ function App() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  if (view === "landing") {
-    return <Landing onGetStarted={() => setView("app")} />;
-  }
-
   return (
     <>
       <Header />
+      <Hero />
       <div className="page">
-        <Hero />
-
         {/* ---------- AI Decision Verification (form | live status) ---------- */}
         <section
           className="section"
@@ -310,6 +303,31 @@ function App() {
         </footer>
       </div>
     </>
+  );
+}
+
+function AppRoutes() {
+  const navigate = useNavigate();
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={<Landing onGetStarted={() => navigate("/home")} />}
+      />
+      <Route path="/home" element={<VerificationPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

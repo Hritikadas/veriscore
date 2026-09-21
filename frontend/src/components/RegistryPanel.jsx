@@ -72,7 +72,7 @@ export default function RegistryPanel({ registry }) {
           <div>
             <span className="infocol-label">Output Semantics</span>
             <div className="tag-list" style={{ marginTop: 6 }}>
-              <span className="tag tag-purple">logit → sigmoid P(default)</span>
+              <span className="tag tag-blue">logit → sigmoid P(default)</span>
               <span className="tag tag-blue">approved if ≥ 0.5</span>
             </div>
           </div>

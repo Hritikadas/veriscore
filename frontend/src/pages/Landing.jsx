@@ -11,9 +11,38 @@ const TRUST = [
 
 export default function Landing({ onGetStarted }) {
   const [logoState, setLogoState] = useState("loading");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  function handleGetStarted() {
+    if (isTransitioning) return;
+
+    setIsTransitioning(true);
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const transitionDuration = prefersReducedMotion ? 80 : 1950;
+
+    window.setTimeout(onGetStarted, transitionDuration);
+  }
 
   return (
     <div className="landing">
+      {isTransitioning && (
+        <div
+          className="lnd-intro"
+          role="status"
+          aria-label="Opening AI verification"
+        >
+          <div className="lnd-intro-logo-wrap">
+            <img
+              className="lnd-intro-logo"
+              src="/images/veriscore-logo.png"
+              alt="Veriscore"
+            />
+          </div>
+        </div>
+      )}
+
       {/* ---------- one continuous full-screen hero ---------- */}
       {/* header overlays the hero: logo top-left only */}
       <header className="lnd-header">
@@ -83,9 +112,9 @@ export default function Landing({ onGetStarted }) {
               <button
                 type="button"
                 className="lnd-btn lnd-btn-lg"
-                onClick={onGetStarted}
+                onClick={handleGetStarted}
               >
-                Get Started
+                Try AI Verification
                 <span className="lnd-btn-arrow" aria-hidden="true">
                   →
                 </span>
@@ -102,6 +131,10 @@ export default function Landing({ onGetStarted }) {
                 </span>
               ))}
             </div>
+
+            <p className="lnd-microline">
+              Privacy-preserving AI verification powered by Zero-Knowledge Proofs
+            </p>
           </div>
         </div>
       </main>
