@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
 import Header from "./components/Header.jsx";
@@ -79,6 +81,7 @@ function buildError(error) {
 }
 
 function VerificationPage() {
+  const demoSectionRef = useRef(null);
   const [income, setIncome] = useState("");
   const [creditScore, setCreditScore] = useState("");
   const [yearsEmployed, setYearsEmployed] = useState("");
@@ -93,6 +96,73 @@ function VerificationPage() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  useLayoutEffect(() => {
+    const section = demoSectionRef.current;
+    if (!section || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return undefined;
+    }
+
+    gsap.registerPlugin(ScrollTrigger);
+    const context = gsap.context(() => {
+      const headingItems = gsap.utils.toArray(
+        ".section-head .eyebrow, .section-head h2, .section-head p",
+        section
+      );
+      const fieldItems = gsap.utils.toArray(".pane-form .field", section);
+      const finalFormItems = gsap.utils.toArray(
+        ".pane-form .btn-primary, .pane-form .privacy-inline",
+        section
+      );
+      const statusPanel = section.querySelector(".pane-status");
+      const revealItems = [
+        ...headingItems,
+        ...fieldItems,
+        ...finalFormItems,
+        statusPanel
+      ].filter(Boolean);
+
+      gsap.set(revealItems, { autoAlpha: 0, y: 30 });
+
+      const timeline = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top 78%",
+          toggleActions: "play none none none",
+          once: true
+        }
+      });
+
+      timeline.to(headingItems, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: "power2.out"
+      });
+      timeline.to(fieldItems, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.55,
+        stagger: 0.1,
+        ease: "power2.out"
+      }, "-=0.1");
+      timeline.to(finalFormItems, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.55,
+        ease: "power2.out"
+      });
+      timeline.to(statusPanel, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.6,
+        ease: "power2.out"
+      }, "+=0.08");
+    }, section);
+
+    return () => context.revert();
   }, []);
 
   useEffect(() => {
@@ -207,6 +277,7 @@ function VerificationPage() {
       <div className="page">
         {/* ---------- AI Decision Verification (form | live status) ---------- */}
         <section
+          ref={demoSectionRef}
           className="section"
           id="verify"
           aria-labelledby="demo-title"
