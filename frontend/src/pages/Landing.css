@@ -1,11 +1,7 @@
 /* ============================================================
    Landing — one continuous full-screen hero canvas
-   The hero image covers the entire viewport; a soft white-blue
-   gradient lifts the left side for the navy typography while the
-   right side keeps the laptop / ZK visual intact.
-
-   Theme: deep navy text, clean blue accents on a soft icy-blue
-   background. No purple, restrained design.
+  The hero image stays visible beneath a deep black overlay so the
+  white and blue Veriscore typography remains readable.
    Desktop = single viewport (100dvh), no scroll.
    ============================================================ */
 
@@ -20,7 +16,7 @@
   padding: 0;
   overflow: hidden;
   box-sizing: border-box;
-  background-color: #f8fafc;
+  background-color: #000000;
   background-image: url("/images/veriai-hero-background.png");
   background-repeat: no-repeat;
   background-size: cover;
@@ -37,7 +33,13 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: rgba(248, 250, 252, 0.72);
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.78) 40%,
+    rgba(0, 0, 0, 0.35) 75%,
+    rgba(0, 0, 0, 0.15) 100%
+  );
 }
 
 .landing::after {
@@ -49,7 +51,7 @@
   height: 24%;
   z-index: 2;
   pointer-events: none;
-  background: rgba(248, 250, 252, 0.28);
+  background: rgba(7, 26, 61, 0.18);
   filter: blur(16px);
 }
 
@@ -60,7 +62,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: rgba(248, 250, 252, 0.97);
+  background: rgba(0, 0, 0, 0.97);
   animation: lnd-intro-exit 1.95s cubic-bezier(0.22, 0.61, 0.36, 1)
     forwards;
 }
@@ -164,11 +166,14 @@
   justify-content: space-between;
   gap: 16px;
   box-sizing: border-box;
-  background: rgba(7, 20, 42, 0.45);
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.75),
+    rgba(0, 0, 0, 0.25)
+  );
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 18px rgba(3, 10, 24, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .lnd-header .brand-logo {
@@ -280,12 +285,12 @@
   gap: 8px;
   padding: 5px 13px;
   border-radius: 999px;
-  border: 1px solid #bdd1ea;
-  background: rgba(248, 250, 252, 0.88);
+  border: 1px solid rgba(22, 119, 255, 0.5);
+  background: rgba(7, 26, 61, 0.48);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.13em;
-  color: #0b1f3a;
+  color: #ffffff;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -308,15 +313,54 @@
   line-height: 1.06;
   letter-spacing: -0.028em;
   font-weight: 800;
-  color: #0b1f3a;
+  color: #ffffff;
   text-wrap: balance;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
 }
 
-.lnd-copy h1 .accent {
-  background: #1677ff;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.hero-line {
+  display: block;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  opacity: 0;
+  transform: translateY(18px);
+  animation: hero-line-reveal 0.6s var(--ease) both;
+  will-change: opacity, transform;
+}
+
+.hero-line-white {
+  color: #ffffff;
+}
+
+.hero-line-blue {
+  color: #5bb8ff;
+  animation-delay: 0.12s;
+}
+
+.hero-line-blue + .hero-line-blue {
+  animation-delay: 0.24s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-line {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+@keyframes hero-line-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .lnd-sub {
@@ -324,7 +368,7 @@
   max-width: 470px;
   font-size: 15.5px;
   line-height: 1.6;
-  color: #526d8c;
+  color: #a8b4c7;
 }
 
 .lnd-cta-row {
@@ -347,7 +391,7 @@
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: #0b1f3a;
+  color: #ffffff;
   white-space: nowrap;
 }
 
@@ -355,55 +399,7 @@
   margin: 1px 0 0;
   font-size: 10.5px;
   line-height: 1.4;
-  color: #7189a5;
-}
-
-:root[data-theme="dark"] .landing {
-  background-color: #060d18;
-  color: #f8fafc;
-}
-
-:root[data-theme="dark"] .landing::before {
-  background: rgba(6, 13, 24, 0.72);
-}
-
-:root[data-theme="dark"] .landing::after {
-  background: rgba(6, 13, 24, 0.36);
-}
-
-:root[data-theme="dark"] .lnd-copy h1 {
-  color: #f8fafc;
-}
-
-:root[data-theme="dark"] .lnd-copy h1 .accent {
-  background: #1677ff;
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-
-:root[data-theme="dark"] .lnd-eyebrow {
-  border-color: #26486b;
-  background: rgba(11, 22, 40, 0.88);
-  color: #d7e7ff;
-}
-
-:root[data-theme="dark"] .lnd-sub,
-:root[data-theme="dark"] .lnd-microline {
-  color: #a5b4c8;
-}
-
-:root[data-theme="dark"] .landing .trust-item {
-  color: #dbe7f7;
-}
-
-:root[data-theme="dark"] .landing .trust-item .tick {
-  background: rgba(22, 119, 255, 0.18);
-  border-color: rgba(22, 119, 255, 0.35);
-  color: #73adff;
-}
-
-:root[data-theme="dark"] .lnd-intro {
-  background: rgba(6, 13, 24, 0.97);
+  color: #8fa1b8;
 }
 
 .landing .trust-item .tick {
@@ -493,7 +489,7 @@
   }
 
   .landing::before {
-    background: rgba(248, 250, 252, 0.82);
+    background: rgba(0, 0, 0, 0.82);
   }
 
   .lnd-header {
@@ -550,11 +546,12 @@
   }
 
   .landing::before {
-    background: rgba(248, 250, 252, 0.86);
-  }
-
-  :root[data-theme="dark"] .landing::before {
-    background: rgba(6, 13, 24, 0.78);
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.9) 0%,
+      rgba(0, 0, 0, 0.78) 48%,
+      rgba(0, 0, 0, 0.55) 100%
+    );
   }
 
   .lnd-header {
@@ -689,7 +686,3 @@
   }
 }
 
-:root[data-theme="dark"] .lnd-header {
-  background: rgba(7, 20, 42, 0.45);
-  border-bottom-color: rgba(255, 255, 255, 0.12);
-}

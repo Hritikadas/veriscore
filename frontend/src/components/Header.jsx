@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { useTheme } from "../theme.jsx";
 
 export default function Header() {
   const [logoState, setLogoState] = useState("loading");
-  const { theme, toggleTheme } = useTheme();
 
   return (
     <header className="topbar">
@@ -59,16 +57,6 @@ export default function Header() {
         </nav>
 
         <div className="topbar-actions">
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            <span className="theme-option">☀ Light</span>
-            <span className="theme-option">☾ Dark</span>
-          </button>
           <span className="health">
             <span className="health-dot" aria-hidden="true" />
             System Operational

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { IconCheck, IconSpark } from "../components/icons.jsx";
+import RadialGlowButton from "../components/RadialGlowButton.jsx";
 import "./Landing.css";
 
 const TRUST = [
@@ -94,11 +95,13 @@ export default function Landing({ onGetStarted }) {
             <p className="lnd-tagline">Private AI. Proven Trust.</p>
 
             <h1>
-              Verify AI Decisions.
-              <br />
-              <span className="accent">
+              <span className="hero-line hero-line-white">
+                Verify AI Decisions.
+              </span>
+              <span className="hero-line hero-line-blue">
                 Without Revealing
-                <br />
+              </span>
+              <span className="hero-line hero-line-blue">
                 Private Data.
               </span>
             </h1>
@@ -109,16 +112,12 @@ export default function Landing({ onGetStarted }) {
             </p>
 
             <div className="lnd-cta-row">
-              <button
-                type="button"
-                className="lnd-btn lnd-btn-lg"
-                onClick={handleGetStarted}
-              >
+              <RadialGlowButton onClick={handleGetStarted}>
                 Try AI Verification
                 <span className="lnd-btn-arrow" aria-hidden="true">
                   →
                 </span>
-              </button>
+              </RadialGlowButton>
             </div>
 
             <div className="lnd-trust">
