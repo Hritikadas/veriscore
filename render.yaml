@@ -50,7 +50,6 @@ services:
         fromService:
           type: web
           name: veriscore-zk-prover
-          property: hostport
           envVarKey: RENDER_EXTERNAL_URL
 
   # ----------------------------------------------------------------------------
@@ -70,5 +69,4 @@ services:
         fromService:
           type: web
           name: veriscore-backend-api
-          property: hostport
           envVarKey: RENDER_EXTERNAL_URL

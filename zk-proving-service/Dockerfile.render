@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY zk-proving-service/ /app/zk-proving-service/
 COPY models/ /app/models/
 COPY model-pipeline/ /app/model-pipeline/
+COPY artifacts/ /app/artifacts/
 
 # Ensure artifacts directory exists and is writable
 RUN mkdir -p /app/artifacts/proofs

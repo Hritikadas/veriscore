@@ -9,9 +9,26 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || "0.0.0.0";
 const PYTHON = process.env.PYTHON || "python";
-// Member B's FastAPI proving service (only needed by /api/verify).
-const PROVER_SERVICE_URL =
-    process.env.PROVER_SERVICE_URL || "http://127.0.0.1:8000";
+// Helper to ensure PROVER_SERVICE_URL is always a valid absolute URL
+function normalizeUrl(url) {
+    if (!url) return "http://127.0.0.1:8000";
+    let u = url.trim();
+    if (!u.startsWith("http://") && !u.startsWith("https://")) {
+        if (u.includes(".") && !u.startsWith("127.0.0.1") && !u.startsWith("localhost")) {
+            u = `https://${u}`;
+        } else {
+            u = `http://${u}`;
+        }
+    }
+    if (u.startsWith("http://") && u.includes(".onrender.com")) {
+        u = u.replace("http://", "https://");
+    }
+    return u.replace(/\/+$/, "");
+}
+
+// Member B's FastAPI proving service (only needed by /api/verify, /api/prove, /api/models).
+const PROVER_SERVICE_URL = normalizeUrl(process.env.PROVER_SERVICE_URL);
+console.log(`[backend] Configured PROVER_SERVICE_URL: ${PROVER_SERVICE_URL}`);
 
 // Middleware
 app.use(cors());
@@ -352,8 +369,10 @@ app.post("/api/prove", async (req, res) => {
 
     // Step 1: Prediction
     let predictor = null;
+    let proverInferErr = null;
 
     try {
+        console.log(`[backend] Requesting prediction from ${PROVER_SERVICE_URL}/api/models/loan-v1/infer ...`);
         const inferResp = await fetch(`${PROVER_SERVICE_URL}/api/models/loan-v1/infer`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -368,13 +387,20 @@ app.post("/api/prove", async (req, res) => {
                 decision: data.approved ? "approved" : "rejected",
                 probability: data.probability
             };
+        } else {
+            const errText = await inferResp.text().catch(() => "");
+            proverInferErr = `HTTP ${inferResp.status} ${errText}`;
+            console.error(`[backend] Prover infer returned error: ${proverInferErr}`);
         }
     } catch (e) {
+        proverInferErr = e.message;
+        console.error(`[backend] Prover infer connection failed: ${e.message}`);
         // Fallback to local python script
     }
 
     if (!predictor) {
         try {
+            console.log("[backend] Falling back to local python prediction script...");
             const proc = await runPython(
                 MODEL_PREDICT_SCRIPT,
                 JSON.stringify(values)
@@ -382,17 +408,17 @@ app.post("/api/prove", async (req, res) => {
             predictor = parsePythonJson(proc.stdout);
 
             if (proc.code !== 0 || !predictor || predictor.success !== true) {
-                console.error("Prediction step failed:", proc.stderr);
+                console.error("Local python prediction failed:", proc.stderr || proc.stdout);
                 return res.status(500).json({
                     success: false,
-                    error: "Prediction step failed"
+                    error: `Prediction step failed. Prover service error: ${proverInferErr || "none"}. Local python error: ${proc.stderr || "non-zero exit"}`
                 });
             }
         } catch (err) {
-            console.error("Prediction step error:", err.message);
+            console.error("Local python execution error:", err.message);
             return res.status(500).json({
                 success: false,
-                error: "Prediction step failed"
+                error: `Prediction step failed. Prover service unreachable (${proverInferErr || err.message}) and local python unavailable.`
             });
         }
     }
@@ -402,6 +428,7 @@ app.post("/api/prove", async (req, res) => {
 
     // Try HTTP proving service endpoint first
     try {
+        console.log(`[backend] Requesting ZK proof from ${PROVER_SERVICE_URL}/generate-proof ...`);
         const proveResp = await fetch(`${PROVER_SERVICE_URL}/generate-proof`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -414,6 +441,7 @@ app.post("/api/prove", async (req, res) => {
 
             // Verify the generated proof
             let verified = false;
+            console.log(`[backend] Verifying ZK proof ${proofId} with ${PROVER_SERVICE_URL}/verify-proof ...`);
             const verifyResp = await fetch(`${PROVER_SERVICE_URL}/verify-proof`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -431,8 +459,12 @@ app.post("/api/prove", async (req, res) => {
                 verified: verified,
                 proofId: proofId
             };
+        } else {
+            const errText = await proveResp.text().catch(() => "");
+            console.error(`[backend] Prover generate-proof returned HTTP ${proveResp.status}: ${errText}`);
         }
     } catch (e) {
+        console.error(`[backend] Prover generate-proof failed: ${e.message}`);
         // Fallback to local python script
     }
 
