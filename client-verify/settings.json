@@ -22,7 +22,7 @@
     "rebase_frac_zero_constants": false,
     "check_mode": "UNSAFE",
     "decomp_base": 16384,
-    "decomp_legs": 2,
+    "decomp_legs": 3,
     "bounded_log_lookup": false,
     "ignore_range_check_inputs_outputs": false,
     "epsilon": 2.220446049250313e-16,
@@ -41,25 +41,17 @@
       [
         "abc,abc->ab",
         {
+          "c": 2,
           "a": 1,
-          "b": 3,
-          "c": 2
-        }
-      ],
-      [
-        "abc,abc->ab",
-        {
-          "a": 1,
-          "b": 3,
-          "c": 2
+          "b": 3
         }
       ],
       [
         "abc,abc->ab",
         {
           "c": 2,
-          "b": 3,
-          "a": 1
+          "a": 1,
+          "b": 3
         }
       ],
       [
@@ -71,11 +63,19 @@
         }
       ],
       [
+        "abc,abc->ab",
+        {
+          "b": 3,
+          "a": 1,
+          "c": 2
+        }
+      ],
+      [
         "mk,nk->n",
         {
-          "k": 3,
           "n": 8,
-          "m": 1
+          "m": 1,
+          "k": 3
         }
       ],
       [
@@ -88,15 +88,15 @@
       [
         "ab,ab->a",
         {
-          "b": 2,
-          "a": 8
+          "a": 8,
+          "b": 2
         }
       ],
       [
         "ab,ab->a",
         {
-          "b": 2,
-          "a": 8
+          "a": 8,
+          "b": 2
         }
       ],
       [
@@ -109,15 +109,8 @@
       [
         "k,nk->n",
         {
-          "n": 4,
-          "k": 8
-        }
-      ],
-      [
-        "ab,ab->a",
-        {
-          "a": 4,
-          "b": 2
+          "k": 8,
+          "n": 4
         }
       ],
       [
@@ -142,6 +135,13 @@
         }
       ],
       [
+        "ab,ab->a",
+        {
+          "a": 4,
+          "b": 2
+        }
+      ],
+      [
         "k,k->mn",
         {
           "k": 4
@@ -150,9 +150,33 @@
       [
         "abc,abc->ab",
         {
+          "a": 1,
           "b": 1,
-          "c": 2,
-          "a": 1
+          "c": 2
+        }
+      ],
+      [
+        "abc,abc->ab",
+        {
+          "b": 1,
+          "a": 1,
+          "c": 2
+        }
+      ],
+      [
+        "abc,abc->ab",
+        {
+          "a": 1,
+          "b": 1,
+          "c": 2
+        }
+      ],
+      [
+        "abc,abc->ab",
+        {
+          "a": 1,
+          "b": 1,
+          "c": 2
         }
       ],
       [
@@ -161,30 +185,6 @@
           "c": 2,
           "a": 1,
           "b": 1
-        }
-      ],
-      [
-        "abc,abc->ab",
-        {
-          "a": 1,
-          "c": 2,
-          "b": 1
-        }
-      ],
-      [
-        "abc,abc->ab",
-        {
-          "b": 1,
-          "c": 2,
-          "a": 1
-        }
-      ],
-      [
-        "abc,abc->ab",
-        {
-          "b": 1,
-          "c": 2,
-          "a": 1
         }
       ]
     ],
@@ -225,7 +225,7 @@
   "check_mode": "UNSAFE",
   "version": "23.0.5",
   "num_blinding_factors": null,
-  "timestamp": 1788709145053,
+  "timestamp": 1791817225094,
   "input_types": [
     "F32"
   ],

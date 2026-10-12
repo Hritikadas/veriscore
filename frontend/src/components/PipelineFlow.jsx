@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   IconUser,
   IconChip,
@@ -18,8 +19,57 @@ const NODES = [
   { label: "VERIFIED", tag: "true", icon: IconCheck, tone: "n6" }
 ];
 
+const HOLD_MS = [1200, 1200, 1200, 1200, 1200, 1800];
+
+const prefersReducedMotion = () =>
+  window.matchMedia &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 export default function PipelineFlow() {
   const ref = useReveal();
+  const sectionRef = useRef(null);
+  const [active, setActive] = useState(0);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return undefined;
+
+    const el = sectionRef.current;
+    if (!el) return undefined;
+
+    if (!("IntersectionObserver" in window)) {
+      setInView(true);
+      return undefined;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActive(0);
+            setInView(true);
+          } else {
+            setInView(false);
+          }
+        });
+      },
+      { threshold: 0.2 }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion() || !inView) return undefined;
+
+    const timer = setTimeout(
+      () => setActive((a) => (a + 1) % NODES.length),
+      HOLD_MS[active]
+    );
+
+    return () => clearTimeout(timer);
+  }, [active, inView]);
 
   return (
     <section className="reveal" ref={ref} id="zk">
@@ -33,17 +83,20 @@ export default function PipelineFlow() {
         </p>
       </div>
 
-      <div className="pipe" aria-label="Veriscore verification pipeline">
+      <div ref={sectionRef} className="pipe pipeline-flow" aria-label="Veriscore verification pipeline">
         {NODES.map((n, i) => {
           const Icon = n.icon;
           return (
             <span key={n.label} style={{ display: "flex", alignItems: "center" }}>
               {i > 0 && (
-                <span className="pipe-arrow" aria-hidden="true">
+                <span
+                  className={`pipe-arrow${i === active || i - 1 === active ? " active" : ""}`}
+                  aria-hidden="true"
+                >
                   <IconArrow width={14} height={14} />
                 </span>
               )}
-              <span className={`pipe-node ${n.tone}`}>
+              <span className={`pipe-node ${n.tone}${i === active ? " active" : ""}`}>
                 <span className="node-icon">
                   <Icon width={17} height={17} />
                 </span>

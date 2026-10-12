@@ -22,12 +22,10 @@ const MSG_SERVICE_DOWN =
   "Verification service unavailable. Confirm the backend (port 5000) and ZK proving service (port 8000) are running, then try again.";
 
 // Hard capacity of the calibrated EZKL circuit: the ONNX model's first
-// feature (annual income) is quantized with scales [11,18] into a 2x14-bit
-// limb tower (base 16384, n=2). Any value above perFeatureMaxCalibrated
-// cannot be decomposed and EZKL witness generation throws a genuine
-// "decomposition error". This is a property of the existing circuit (see
-// prover_service.py model_info() -> supportedRange), NOT a service bug.
-const CIRCUIT_MAX_FEATURE = 131071;
+// feature (annual income) is quantized with scales [11,18] into a 3x14-bit
+// limb tower (base 16384, n=3, capacity 2^42). This supports annual incomes
+// up to ₹1,00,00,000 (1 crore INR).
+const CIRCUIT_MAX_FEATURE = 10000000;
 
 function friendlyApiError(body, status, prediction) {
   const raw = String((body && body.error) || `Request failed (${status})`);
@@ -51,8 +49,8 @@ function friendlyApiError(body, status, prediction) {
     if (/decomposition|too large to be represented|synthesis error/.test(detail + m)) {
       return (
         "ZK proof generation could not run: annual income exceeds the calibrated circuit's " +
-        `maximum of ${CIRCUIT_MAX_FEATURE.toLocaleString("en-US")} USD/year ` +
-        "(2x14-bit EZKL limb capacity). Enter an income at or below this limit."
+        `maximum of ₹${CIRCUIT_MAX_FEATURE.toLocaleString("en-IN")} (1 crore INR) ` +
+        "(3x14-bit EZKL limb capacity). Enter an income at or below this limit."
       );
     }
     if (/proving service returned an error|proof generation|not available|prover/.test(m)) {
@@ -194,12 +192,11 @@ function VerificationPage() {
 
     if (String(income).trim() === "") {
       errors.income = "Annual income is required.";
-    } else if (!Number.isFinite(nums[0]) || nums[0] <= 0) {
-      errors.income = "Annual income must be a positive number.";
+    } else if (!Number.isFinite(nums[0]) || nums[0] < 0) {
+      errors.income = "Annual income must be a non-negative number.";
     } else if (nums[0] > CIRCUIT_MAX_FEATURE) {
       errors.income =
-        `Annual income exceeds the proof circuit's maximum of ` +
-        `${CIRCUIT_MAX_FEATURE.toLocaleString("en-US")} USD/year. ` +
+        `Annual income exceeds the maximum of ₹1,00,00,000 (1 crore INR). ` +
         `Enter an income at or below this limit.`;
     }
 

@@ -87,6 +87,15 @@ if not isinstance(input_data, list) or len(input_data) != 3:
 
     sys.exit(1)
 
+if input_data[0] < 0 or input_data[0] > 10000000:
+
+    print(json.dumps({
+        "success": False,
+        "error": "Annual income must be between 0 and ₹1,00,00,000 (1 crore INR)"
+    }))
+
+    sys.exit(1)
+
 
 # ============================================
 # PREPARE ONNX INPUT

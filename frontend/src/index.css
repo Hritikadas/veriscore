@@ -1410,6 +1410,41 @@ select {
   animation: flow-x 1.3s ease-in-out infinite;
 }
 
+/* ---------- verification-flow highlight (gliding glow) ---------- */
+
+.pipeline-flow .pipe-node {
+  transition: transform 0.8s ease-in-out, width 0.8s ease-in-out,
+    height 0.8s ease-in-out, background-color 0.8s ease-in-out,
+    border-color 0.8s ease-in-out, box-shadow 0.8s ease-in-out,
+    color 0.8s ease-in-out;
+}
+
+.pipeline-flow .pipe-node.active {
+  border-color: rgba(33, 118, 255, 0.55);
+  background: rgba(33, 118, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(33, 118, 255, 0.15),
+    0 0 16px rgba(33, 118, 255, 0.16), 0 0 42px rgba(56, 189, 248, 0.07);
+}
+
+.pipeline-flow .pipe-node.active .node-icon {
+  background: rgba(33, 118, 255, 0.22);
+  color: #9cd2ff;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.45));
+}
+
+.pipeline-flow .pipe-node.active .node-tag {
+  color: #8fb8e0;
+}
+
+.pipeline-flow .pipe-arrow {
+  transition: color 0.8s ease-in-out, filter 0.8s ease-in-out;
+}
+
+.pipeline-flow .pipe-arrow.active {
+  color: rgba(33, 118, 255, 0.85);
+  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.5));
+}
+
 @media (max-width: 640px) {
   .pipe {
     flex-direction: column;
@@ -2094,6 +2129,18 @@ select {
   }
 }
 
+.privacy-grid .card {
+  transition: border-color 0.4s var(--ease), box-shadow 0.4s var(--ease),
+    background-color 0.3s ease;
+}
+
+.privacy-grid .card:hover {
+  border-color: rgba(22, 119, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2),
+    0 0 24px rgba(22, 119, 255, 0.12), 0 0 60px rgba(22, 119, 255, 0.08),
+    0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
 .flow {
   display: flex;
   flex-direction: column;
@@ -2498,6 +2545,15 @@ select {
   .btn-primary,
   .mini-card,
   .copy-btn {
+    transition: none;
+  }
+
+  .privacy-grid .card {
+    transition: none;
+  }
+
+  .pipeline-flow .pipe-node,
+  .pipeline-flow .pipe-arrow {
     transition: none;
   }
 }

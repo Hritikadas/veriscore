@@ -369,7 +369,7 @@ node ethers-chain-demo.js   # ethers.js + local ganache chain (real mined txs)
 
 1. Start the three services (section 15) and open http://localhost:5173.
 2. **Hero** explains the pitch: "Trust AI. Keep Data Private." with a mini model -> proof -> verify flow.
-3. Scroll to the **demo**: enter loan data — annual income (USD/year, e.g. 25000), credit score (0–850, e.g. 700), years employed (e.g. 3).
+3. Scroll to the **demo**: enter loan data — annual income (₹ INR/year, e.g. 100000), credit score (0–850, e.g. 700), years employed (e.g. 3).
 4. Click **Generate Proof** — the status panel steps through *Connecting to proving service -> Running AI model -> Generating ZK proof -> Cryptographic verification* (proofs take ~1.5 s, the panel communicates that honestly).
 5. **Result panel** shows the decision (APPROVED / REJECTED), the probability (e.g. **40.16% / REJECTED** for `[30000, 450, 1]`, **60.56% / APPROVED** for `[100000, 800, 10]`), chips for **ZK Proof Generated** and **Cryptographic Verification Verified**, and the proof ID.
 6. **How the proof protects you**: privacy section explains raw inputs never appear in the proof; inputs are Private, weights Fixed, output Public.

@@ -350,6 +350,11 @@
     transform: none !important;
     animation: none !important;
   }
+
+  .lh-char {
+    animation: none !important;
+    transform: none !important;
+  }
 }
 
 @keyframes hero-line-reveal {
@@ -360,6 +365,27 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* subtle liquid wave — travels letter to letter through the blue hero lines */
+.lh-char {
+  display: inline-block;
+  will-change: transform;
+  animation: liquid-wave 8s ease-in-out infinite;
+  animation-delay: calc(var(--liq-base, 1s) + var(--i) * -0.45s);
+}
+
+@keyframes liquid-wave {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-2.5px);
+  }
+  70% {
+    transform: translateY(1.5px);
   }
 }
 

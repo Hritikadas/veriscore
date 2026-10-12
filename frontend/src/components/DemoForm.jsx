@@ -16,7 +16,7 @@ export default function DemoForm({
     <div className="pane pane-form">
       <form onSubmit={onSubmit} noValidate>
         <div className="field">
-          <label htmlFor="income">Annual Income</label>
+          <label htmlFor="income">Annual Income (₹ INR)</label>
           <div className="input-wrap">
             <span className="input-icon">
               <IconMoney width={17} height={17} />
@@ -32,7 +32,7 @@ export default function DemoForm({
                 setIncome(e.target.value);
                 onClearError("income");
               }}
-              placeholder="e.g. 100000"
+              placeholder="e.g. 1000000"
               aria-describedby="income-hint"
             />
           </div>
@@ -41,7 +41,7 @@ export default function DemoForm({
               {errors.income}
             </span>
           ) : (
-            <span id="income-hint" className="field-hint">USD / year — your yearly income (proof circuit max 131,071)</span>
+            <span id="income-hint" className="field-hint">₹ INR / year — your yearly income (proof circuit max ₹1,00,00,000 / 1 crore)</span>
           )}
         </div>
 

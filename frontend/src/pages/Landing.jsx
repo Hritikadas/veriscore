@@ -10,6 +10,19 @@ const TRUST = [
   "Secure Verification"
 ];
 
+function LiquidLine({ text }) {
+  const chars = Array.from(text);
+  return chars.map((ch, i) =>
+    ch === " " ? (
+      " "
+    ) : (
+      <span key={i} className="lh-char" style={{ "--i": i }}>
+        {ch}
+      </span>
+    )
+  );
+}
+
 export default function Landing({ onGetStarted }) {
   const [logoState, setLogoState] = useState("loading");
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -98,11 +111,11 @@ export default function Landing({ onGetStarted }) {
               <span className="hero-line hero-line-white">
                 Verify AI Decisions.
               </span>
-              <span className="hero-line hero-line-blue">
-                Without Revealing
+              <span className="hero-line hero-line-blue" style={{ "--liq-base": "0.9s" }}>
+                <LiquidLine text="Without Revealing" />
               </span>
-              <span className="hero-line hero-line-blue">
-                Private Data.
+              <span className="hero-line hero-line-blue" style={{ "--liq-base": "0.9s" }}>
+                <LiquidLine text="Private Data." />
               </span>
             </h1>
 

@@ -30,6 +30,9 @@ function normalizeUrl(url) {
 const PROVER_SERVICE_URL = normalizeUrl(process.env.PROVER_SERVICE_URL);
 console.log(`[backend] Configured PROVER_SERVICE_URL: ${PROVER_SERVICE_URL}`);
 
+// Maximum annual income in INR: ₹1,00,00,000 (1 crore)
+const MAX_ANNUAL_INCOME = 10000000;
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -169,10 +172,16 @@ app.post("/api/models/:id/infer", (req, res) => {
     const body = req.body && Array.isArray(req.body.input)
         ? { input: req.body.input }
         : null;
-    if (!body) {
+    if (!body || body.input.length !== 3) {
         return res.status(400).json({
             success: false,
             error: "Expected { input: [income, credit_score, years_employed] }"
+        });
+    }
+    if (body.input[0] < 0 || body.input[0] > MAX_ANNUAL_INCOME) {
+        return res.status(400).json({
+            success: false,
+            error: "Annual income must be between 0 and ₹1,00,00,000 (1 crore INR)"
         });
     }
     forwardZk(req, res, "POST", `/api/models/${encodeURIComponent(req.params.id)}/infer`, body);
@@ -211,6 +220,12 @@ app.post("/api/predict", async (req, res) => {
                 error:
                     "Expected exactly 3 numeric features: " +
                     "[income, credit_score, years_employed]"
+            });
+        }
+        if (values[0] < 0 || values[0] > MAX_ANNUAL_INCOME) {
+            return res.status(400).json({
+                success: false,
+                error: "Annual income must be between 0 and ₹1,00,00,000 (1 crore INR)"
             });
         }
 
@@ -364,6 +379,12 @@ app.post("/api/prove", async (req, res) => {
             error:
                 "Expected exactly 3 numeric features: " +
                 "[income, credit_score, years_employed]"
+        });
+    }
+    if (values[0] < 0 || values[0] > MAX_ANNUAL_INCOME) {
+        return res.status(400).json({
+            success: false,
+            error: "Annual income must be between 0 and ₹1,00,00,000 (1 crore INR)"
         });
     }
 

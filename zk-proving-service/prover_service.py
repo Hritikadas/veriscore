@@ -97,10 +97,9 @@ def _run_setup_once_if_needed():
 
     # 2. Calibrate scales/lookup tables for good numeric precision at a small
     #    circuit size. (sync call in ezkl 23.x - do NOT await it)
-    #    Scales are pinned: a per-feature input range up to ~131071 needs
-    #    input/param scale <= 11/18 so every decomposed limb still fits in the
-    #    2 x 14-bit table capacity, while param_scale 18 keeps the ZK output
-    #    faithful to the float model for the app's demo inputs.
+    #    With decomp_legs=3 (3 x 14-bit limbs = 2^42 capacity), per-feature inputs
+    #    up to ₹1,00,00,000 (1 crore = 10^7) easily fit (10^7 * 2^11 = 20,480,000,000 < 2^42)
+    #    while scales=[11, 18] keeps the ZK output faithful to the float model.
     ezkl.calibrate_settings(
         CALIBRATION_INPUT_PATH,
         MODEL_PATH,
@@ -120,11 +119,13 @@ def _run_setup_once_if_needed():
     #    mismatch". We therefore calibrate while the input is public, then flip
     #    visibility and strip the (now-private) input shape, keeping only the
     #    output shape in model_instance_shapes.
+    #    We also enforce decomp_legs=3 to support inputs up to ₹1,00,00,000 (1 crore INR).
     with open(SETTINGS_PATH) as f:
         settings = json.load(f)
 
     settings["run_args"]["input_visibility"] = "Private"
     settings["run_args"]["output_visibility"] = "Public"
+    settings["run_args"]["decomp_legs"] = 3
 
     instance_shapes = settings.get("model_instance_shapes", [])
     if instance_shapes:
@@ -334,9 +335,9 @@ def model_info() -> dict:
             "dtype": "float32",
             "normalization": "z-score, baked into the ONNX graph",
             "supportedRange": {
-                "perFeatureMaxCalibrated": 131071,
-                "note": "calibrated max; inputs larger than ~131071 cannot be "
-                        "decomposed into the 2x14-bit limb table (see docs).",
+                "perFeatureMaxCalibrated": 10000000,
+                "note": "calibrated max for ₹1,00,00,000 (1 crore INR); inputs up to "
+                        "1 crore are supported via the 3x14-bit EZKL limb tower.",
             },
         },
         "output": {
