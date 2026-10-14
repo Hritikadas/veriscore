@@ -59,3 +59,17 @@ Thumbs.db
 *.tmp
 *.temp
 *.bak
+
+# Cryptographic and generated artifacts
+artifacts/proving.key
+artifacts/verifying.key
+artifacts/kzg.srs
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Backup artifacts
+artifacts/backup_*/
+artifacts/stale_*/

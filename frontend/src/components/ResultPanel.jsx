@@ -1,11 +1,15 @@
+import { useState } from "react";
 import {
   IconCheck,
   IconCopy,
   IconChip,
   IconShield,
   IconChevronDown,
-  IconCube
+  IconCube,
+  IconDoc,
+  IconAlert
 } from "./icons.jsx";
+import { fetchReceiptJson, getReceiptPdfUrl } from "../services/api.js";
 import useCountUp from "./useCountUp.js";
 
 export default function ResultPanel({ result, copied, onCopy }) {
@@ -18,6 +22,86 @@ export default function ResultPanel({ result, copied, onCopy }) {
     delay: approved ? 320 : 100,
     duration: approved ? 900 : 600
   });
+
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingJson, setDownloadingJson] = useState(false);
+  const [receiptError, setReceiptError] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+
+  const receiptOptions = {
+    decision: result.decision,
+    probability: result.probability,
+    modelVersion: result.modelVersion
+  };
+
+  async function handleDownloadPdf() {
+    setDownloadingPdf(true);
+    setReceiptError(null);
+    try {
+      const pdfUrl = getReceiptPdfUrl(result.proofId, receiptOptions);
+      const res = await fetch(pdfUrl);
+      if (!res.ok) {
+        const errObj = await res.json().catch(() => ({}));
+        throw new Error(errObj.error || `HTTP ${res.status}: Failed to generate PDF`);
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `veriscore-decision-receipt-${result.proofId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setReceiptError(err.message || "Failed to download PDF receipt.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
+  async function handleDownloadJson() {
+    setDownloadingJson(true);
+    setReceiptError(null);
+    try {
+      const res = await fetchReceiptJson(result.proofId, receiptOptions);
+      if (!res.ok || !res.body.receipt) {
+        throw new Error(res.body.error || `HTTP ${res.status}: Failed to generate JSON receipt`);
+      }
+      const jsonBlob = new Blob([JSON.stringify(res.body.receipt, null, 2)], {
+        type: "application/json"
+      });
+      const blobUrl = window.URL.createObjectURL(jsonBlob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `veriscore-decision-receipt-${result.proofId.slice(0, 8)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setReceiptError(err.message || "Failed to download JSON receipt.");
+    } finally {
+      setDownloadingJson(false);
+    }
+  }
+
+  async function handleTogglePreview() {
+    if (showPreview) {
+      setShowPreview(false);
+      return;
+    }
+    if (!previewData) {
+      try {
+        const res = await fetchReceiptJson(result.proofId, receiptOptions);
+        if (res.ok && res.body.receipt) {
+          setPreviewData(res.body.receipt);
+        }
+      } catch {}
+    }
+    setShowPreview(true);
+  }
 
   return (
     <section
@@ -94,7 +178,107 @@ export default function ResultPanel({ result, copied, onCopy }) {
           </div>
         </div>
 
-        <details className="result-details">
+        {/* Verifiable Decision Receipt Download Card */}
+        <div className={`receipt-card${verified ? "" : " unverified"}`}>
+          <div className="receipt-card-head">
+            <span className="receipt-card-title">
+              <IconDoc width={14} height={14} />
+              Verifiable AI Decision Receipt
+            </span>
+            <span className={`receipt-badge-mini${verified ? "" : " unverified"}`}>
+              {verified ? "Verified ✓" : "Unverified ✖"}
+            </span>
+          </div>
+
+          <p style={{ margin: 0, fontSize: "12px", color: "var(--text-2)", lineHeight: 1.4 }}>
+            {verified
+              ? "Download an official cryptographic receipt certifying model execution, decision verdict, and ZK verification proof."
+              : "Cryptographic proof was not verified. The receipt will indicate UNVERIFIED status in compliance with zero-knowledge verification rules."}
+          </p>
+
+          <div className="receipt-actions">
+            <button
+              type="button"
+              className="btn-receipt-primary"
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+            >
+              <IconDoc width={14} height={14} />
+              {downloadingPdf ? "Generating PDF…" : "Download Decision Receipt (PDF)"}
+            </button>
+
+            <button
+              type="button"
+              className="btn-receipt-secondary"
+              onClick={handleDownloadJson}
+              disabled={downloadingJson}
+            >
+              {downloadingJson ? "Exporting…" : "JSON Receipt"}
+            </button>
+
+            <button
+              type="button"
+              className="btn-receipt-secondary"
+              onClick={handleTogglePreview}
+              style={{ fontSize: "11.5px" }}
+            >
+              {showPreview ? "Hide Preview ▲" : "Preview ▼"}
+            </button>
+          </div>
+
+          {receiptError && (
+            <div style={{ color: "#f87171", fontSize: "11.5px" }}>
+              {receiptError}
+            </div>
+          )}
+
+          {showPreview && previewData && (
+            <div
+              style={{
+                marginTop: "4px",
+                padding: "10px 12px",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                fontSize: "11px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                fontFamily: "var(--font-mono)"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--muted)" }}>Receipt ID:</span>
+                <span style={{ color: "#38bdf8", fontWeight: 600 }}>{previewData.receiptId}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--muted)" }}>Decision / Probability:</span>
+                <span style={{ color: verified ? "#34d399" : "#f87171", fontWeight: 700 }}>
+                  {previewData.decision} ({previewData.probabilityPercent})
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--muted)" }}>Verification Status:</span>
+                <span style={{ color: verified ? "#34d399" : "#f87171", fontWeight: 700 }}>
+                  {previewData.verificationStatus}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--muted)" }}>Engine & Curve:</span>
+                <span style={{ color: "var(--text-2)" }}>{previewData.cryptographicDetails.provingEngine} • {previewData.cryptographicDetails.curve}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--muted)" }}>ZK Input Protection:</span>
+                <span style={{ color: "#10b981" }}>Private (Withheld)</span>
+              </div>
+              <div style={{ wordBreak: "break-all", fontSize: "10px", color: "var(--faint)", marginTop: "2px" }}>
+                SHA256 Digest: {previewData.receiptDigest}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <details className="result-details" style={{ marginTop: "10px" }}>
           <summary>
             <IconCube width={14} height={14} />
             View full proof response

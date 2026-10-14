@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 export default function Header() {
   const [logoState, setLogoState] = useState("loading");
@@ -54,6 +55,20 @@ export default function Header() {
           <a className="nav-link" href="#onchain">
             On-Chain
           </a>
+          <Link
+            className="nav-link"
+            to="/trust-lab"
+            style={{
+              color: "#38bdf8",
+              background: "rgba(56, 189, 248, 0.12)",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
+              borderRadius: "8px",
+              padding: "4px 10px",
+              fontWeight: 600
+            }}
+          >
+            Trust Lab 🔬
+          </Link>
         </nav>
 
         <div className="topbar-actions">

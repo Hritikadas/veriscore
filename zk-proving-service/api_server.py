@@ -13,6 +13,9 @@ from pydantic import BaseModel
 from prover_service import (
     generate_proof,
     verify_proof,
+    verify_proof_detailed,
+    test_tamper,
+    list_recent_proofs,
     get_proof,
     model_info,
     infer_model,
@@ -28,6 +31,12 @@ class ProveRequest(BaseModel):
 
 class VerifyRequest(BaseModel):
     proofId: str
+
+
+class TamperRequest(BaseModel):
+    proofId: str
+    tamperType: str = "original"
+    customPayload: dict | None = None
 
 
 @app.post("/generate-proof")
@@ -51,10 +60,24 @@ def http_get_proof(proof_id: str):
 @app.post("/verify-proof")
 def http_verify_proof(req: VerifyRequest):
     try:
-        verified = verify_proof(req.proofId)
-        return {"verified": verified}
+        return verify_proof_detailed(req.proofId)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/verify-tamper")
+def http_verify_tamper(req: TamperRequest):
+    try:
+        return test_tamper(req.proofId, req.tamperType, req.customPayload)
+    except ValueError as e:
+        raise HTTPException(status_code=400 if "Unsupported" in str(e) else 404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tamper test failed: {e}")
+
+
+@app.get("/api/trust-lab/recent-proofs")
+def http_recent_proofs():
+    return {"proofs": list_recent_proofs(20)}
 
 
 @app.get("/health")

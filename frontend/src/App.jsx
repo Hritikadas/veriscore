@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
+import TrustLab from "./pages/TrustLab.jsx";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
 import HowItWorks from "./components/HowItWorks.jsx";
@@ -384,6 +385,7 @@ function AppRoutes() {
         element={<Landing onGetStarted={() => navigate("/home")} />}
       />
       <Route path="/home" element={<VerificationPage />} />
+      <Route path="/trust-lab" element={<TrustLab />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

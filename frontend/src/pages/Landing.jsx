@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { IconCheck, IconSpark } from "../components/icons.jsx";
 import RadialGlowButton from "../components/RadialGlowButton.jsx";
 import "./Landing.css";
@@ -131,6 +132,27 @@ export default function Landing({ onGetStarted }) {
                   →
                 </span>
               </RadialGlowButton>
+              <Link
+                to="/trust-lab"
+                className="lnd-trustlab-cta"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "12px 24px",
+                  background: "rgba(22, 119, 255, 0.1)",
+                  border: "1px solid rgba(56, 189, 248, 0.4)",
+                  borderRadius: "999px",
+                  color: "#38bdf8",
+                  textDecoration: "none",
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  backdropFilter: "blur(8px)",
+                  boxShadow: "0 4px 14px rgba(22, 119, 255, 0.15)"
+                }}
+              >
+                <span>🔬 Enter Trust Lab</span>
+              </Link>
             </div>
 
             <div className="lnd-trust">
