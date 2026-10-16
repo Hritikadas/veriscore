@@ -398,7 +398,9 @@
 }
 
 .lnd-cta-row {
-  margin-top: clamp(2px, 0.8vh, 6px);
+  display: flex;
+  align-items: center;
+  margin-top: clamp(4px, 1vh, 8px);
 }
 
 .lnd-trust {
